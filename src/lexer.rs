@@ -1,5 +1,6 @@
 use unicode_segmentation::UnicodeSegmentation;
 
+#[derive(Debug)]
 pub enum Lexem {
     LeftPar,
     RightPar,
@@ -9,6 +10,7 @@ pub enum Lexem {
     Number(String, String), // (representation, decorator)
     Operator(String),
     Mid,
+    Comma
 }
 impl std::fmt::Display for Lexem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -21,6 +23,7 @@ impl std::fmt::Display for Lexem {
             Lexem::Number(s, d) => write!(f, "NUM{{{}, \"{}\"}}", s, d),
             Lexem::Operator(s) => write!(f, "OP{{{}}}", s),
             Lexem::Mid => write!(f, "MID|"),
+            Lexem::Comma => write!(f, "COMMA,"),
         }
     }
 }
@@ -72,6 +75,10 @@ impl Lexer {
             }else if char == "|" {
                 // MID
                 self.lexems.push(Lexem::Mid);
+                i += 1;
+            }else if char == "," {
+                // COMMA
+                self.lexems.push(Lexem::Comma);
                 i += 1;
             }else if "+-*/^?".find(char).is_some() {
                 // PLUS, MINUS, TIMES, DIVIDE, POWER, QUESTION
