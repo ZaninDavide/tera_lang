@@ -1,5 +1,8 @@
 use crate::lexer::Lexem;
 
+// declare submodule ast::eval
+mod eval;
+
 #[derive(std::clone::Clone, Debug)]
 pub enum Node {
     None,
@@ -48,6 +51,21 @@ impl Tree {
     }
     fn is_question(&self) -> bool {
         match &self.node { Node::Operator(str) =>  { !self.has_value && str == "?" }, _ => false }
+    }
+    fn is_greater(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == ">" }, _ => false }
+    }
+    fn is_greater_equal(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == ">=" }, _ => false }
+    }
+    fn is_less(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "<" }, _ => false }
+    }
+    fn is_less_equal(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "<=" }, _ => false }
+    }
+    fn is_equal_equal(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "==" }, _ => false }
     }
 }
 
@@ -252,46 +270,66 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                 }else{
                     match &lexems[i + 1] {
                         Lexem::LeftPar => {
-                            // Function call
-                            let mut args = Vec::new();
-                            
-                            // To determine the function arguments we have to consume the parenthesis
-                            // and every time we find a comma(,) at a parenthesis level of +1 we add
-                            // the ast of that section as argument to the function call
-                            let mut parcount = 1;
-                            let mut from: usize = i + 1;
-                            let mut to: usize = 0;
-                            i += 2;
-                            'consumerPar: while i < lexems.len() { 
-                                if let Lexem::LeftPar = lexems[i] {
-                                    parcount += 1;
-                                }else if let Lexem::RightPar = lexems[i] {
-                                    parcount -= 1;
-                                }else if let Lexem::Comma = lexems[i] {
-                                    if parcount == 1 {
-                                        args.push(ast(&lexems[from+1..i]));
-                                        from = i;
-                                    }
-                                }
-                                if parcount == 0 {
-                                    to = i;
-                                    i += 1;
-                                    break 'consumerPar;
+                            let empty: bool;
+                            if lexems.len() > i + 2 {
+                                if let Lexem::RightPar = &lexems[i + 2] {
+                                    // this is an empty function call
+                                    empty = true;
                                 }else{
-                                    i += 1;
+                                    empty = false;
                                 }
-                            }
-                            if to == 0 {
+                            }else{
                                 panic!("Each opening parenthesis needs a corresponding closing parenthesis");
                             }
-                            
-                            // we need to push the last argument
-                            args.push(ast(&lexems[from+1..i-1]));
-                            
-                            Tree {
-                                node: Node::FunctionCall(str.clone()),
-                                children: args,
-                                has_value: true,
+
+                            if empty {
+                                Tree {
+                                    node: Node::FunctionCall(str.clone()),
+                                    children: Vec::new(),
+                                    has_value: true,
+                                }
+                            }else{
+                                // Function call
+                                let mut args = Vec::new();
+                                
+                                // To determine the function arguments we have to consume the parenthesis
+                                // and every time we find a comma(,) at a parenthesis level of +1 we add
+                                // the ast of that section as argument to the function call
+                                let mut parcount = 1;
+                                let mut from: usize = i + 1;
+                                let mut to: usize = 0;
+                                i += 2;
+                                'consumerPar: while i < lexems.len() { 
+                                    if let Lexem::LeftPar = lexems[i] {
+                                        parcount += 1;
+                                    }else if let Lexem::RightPar = lexems[i] {
+                                        parcount -= 1;
+                                    }else if let Lexem::Comma = lexems[i] {
+                                        if parcount == 1 {
+                                            args.push(ast(&lexems[from+1..i]));
+                                            from = i;
+                                        }
+                                    }
+                                    if parcount == 0 {
+                                        to = i;
+                                        i += 1;
+                                        break 'consumerPar;
+                                    }else{
+                                        i += 1;
+                                    }
+                                }
+                                if to == 0 {
+                                    panic!("Each opening parenthesis needs a corresponding closing parenthesis");
+                                }
+                                
+                                // we need to push the last argument
+                                args.push(ast(&lexems[from+1..i-1]));
+                                
+                                Tree {
+                                    node: Node::FunctionCall(str.clone()),
+                                    children: args,
+                                    has_value: true,
+                                }
                             }
                         }
                         _ => {
@@ -334,6 +372,9 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
     // sum, sub
     apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_sum() || tree.is_sub() });
 
+    // eq(==), gt(>), gte(>=), lt(<), lte(<=)
+    apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_equal_equal() || tree.is_greater() || tree.is_greater_equal() || tree.is_less() || tree.is_less_equal() });
+
     // and
     apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_and() });
 
@@ -345,104 +386,4 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
     }
 
     level.remove(0)
-}
-
-impl Tree {
-    pub fn eval(&self) -> f64 {
-        if let Node::Number(val, dec) = &self.node {
-            // TODO: number to value
-            return *val;
-        }else if let Node::Operator(opname) = &self.node {
-            let length = self.children.len();
-            match &opname[..] {
-                "!" => {
-                    if length == 1 {
-                        return if self.children[0].eval() == 0.0 {1.0} else {0.0} ;
-                    }else{
-                        panic!("The '!' operator is unary only but a number of {} children where found.", length)
-                    }
-                }
-                "?" => {
-                    if length == 1 {
-                        return if self.children[0].eval() != 0.0 {1.0} else {0.0} ;
-                    }else{
-                        panic!("The '?' operator is unary only but a number of {} children where found.", length)
-                    }
-                }
-                "+" => {
-                    if length == 1 {
-                        return self.children[0].eval();
-                    }else if length == 2 {
-                        return self.children[0].eval() + self.children[1].eval();
-                    }else{
-                        panic!("The '+' operator can be either unary or binary but a number of {} children where found.", length)
-                    }
-                }
-                "-" => {
-                    if length == 1 {
-                        return -self.children[0].eval();
-                    }else if length == 2 {
-                        return self.children[0].eval() - self.children[1].eval();
-                    }else{
-                        panic!("The '-' operator can be either unary or binary but a number of {} children where found.", length)
-                    }
-                }
-                "^" => {
-                    if length == 2 {
-                        return self.children[0].eval().powf(self.children[1].eval());
-                    }else{
-                        panic!("The '^' operator is binary only but a number of {} children where found.", length)
-                    }
-                }
-                "*" => {
-                    if length == 2 {
-                        return self.children[0].eval() * self.children[1].eval();
-                    }else{
-                        panic!("The '*' operator is binary only but a number of {} children where found.", length)
-                    }
-                }
-                "/" => {
-                    if length == 2 {
-                        return self.children[0].eval() / self.children[1].eval();
-                    }else{
-                        panic!("The '/' operator is binary only but a number of {} children where found.", length)
-                    }
-                }
-                "and" => {
-                    if length == 2 {
-                        return if self.children[0].eval() != 0.0 && self.children[1].eval() != 0.0 {1.0} else {0.0};
-                    }else{
-                        panic!("The 'and' operator is binary only but a number of {} children where found.", length)
-                    }
-                }
-                "or" => {
-                    if length == 2 {
-                        return if self.children[0].eval() != 0.0 || self.children[1].eval() != 0.0 {1.0} else {0.0};
-                    }else{
-                        panic!("The 'and' operator is binary only but a number of {} children where found.", length)
-                    }
-                }
-                _ => {
-                    panic!("Unknown operator '{}'", opname);
-                }
-            }
-        } else if let Node::FunctionCall(fname) = &self.node {
-            let length = self.children.len();
-            match &fname[..] {
-                "sin" => {
-                    if length == 1 {
-                        return self.children[0].eval().sin();
-                    }else{
-                        panic!("The 'sin' function takes one parameter only, but {} parameters where found.", length);
-                    }
-                }
-                _ => {
-
-                }
-            }
-            0.0
-        }else{
-            panic!("Unable to give value to:\n {:?}", &self);
-        }
-    }
 }
