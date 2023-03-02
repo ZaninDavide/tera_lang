@@ -1,7 +1,7 @@
 use crate::lexer::Lexem;
 
 // declare submodule ast::eval
-mod eval;
+pub mod eval;
 
 #[derive(std::clone::Clone, Debug)]
 pub enum Node {
@@ -10,6 +10,7 @@ pub enum Node {
     Operator(String),
     Variable(String),
     FunctionCall(String),
+    Block,
 }
 
 #[derive(std::clone::Clone, Debug)]
@@ -66,6 +67,9 @@ impl Tree {
     }
     fn is_equal_equal(&self) -> bool {
         match &self.node { Node::Operator(str) =>  { !self.has_value && str == "==" }, _ => false }
+    }
+    fn is_assign(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "=" }, _ => false }
     }
 }
 
@@ -199,7 +203,11 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
     // • add all other binary operators
     
     if lexems.len() == 0 {
-        panic!("Cannot create any AST if there are no lexems.");
+        return Tree {
+            node: Node::None,
+            children: Vec::new(),
+            has_value: true,
+        }
     }
 
     let mut level: Vec<Tree> = Vec::new();
@@ -216,21 +224,7 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
             Lexem::Operator(opname) => {
                 i += 1;
                 // OPERATOR TO NODE.
-                let node;
-                match &opname[..] {
-                    "!" | "?" => {
-                        node = Node::Operator(opname.clone()).into();
-                    },
-                    "+" | "-" | "*" | "/" | "^" | "==" | "!=" | ">" | "<" | ">=" | "<=" | "and" | "or" | "nand" | "xor" => {
-                        // sum and subtraction are considered binary even though they might be unary
-                        // this will be handled separately
-                        node = Node::Operator(opname.clone()).into();
-                    },
-                    _ => {
-                        panic!("Unknown operator '{}'", opname);
-                    }
-                }
-                node
+                Node::Operator(opname.clone()).into()
             },
             Lexem::LeftPar => {
                 // find start and end of this parenthesis section
@@ -256,6 +250,49 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                     panic!("Each opening parenthesis needs a corresponding closing parenthesis. parcount: {}", parcount);
                 }else{
                     ast(&lexems[from+1..to])
+                }
+            },
+            Lexem::LeftBracket => {
+                // Block
+                let mut elements = Vec::new();
+                                 
+                // Consume the content of brackets
+                // and every time we find a semi-colon(;) at a bracket level of +1 we add
+                // the ast of that section as element of the block
+                let mut bracketcount = 1;
+                let mut from: usize = i;
+                let mut to: usize = 0;
+                i += 2;
+                'consumerPar: while i < lexems.len() { 
+                    if let Lexem::LeftBracket = lexems[i] {
+                        bracketcount += 1;
+                    }else if let Lexem::RightBracket = lexems[i] {
+                        bracketcount -= 1;
+                    }else if let Lexem::SemiColon = lexems[i] {
+                        if bracketcount == 1 {
+                            elements.push(ast(&lexems[from+1..i]));
+                            from = i;
+                        }
+                    }
+                    if bracketcount == 0 {
+                        to = i;
+                        i += 1;
+                        break 'consumerPar;
+                    }else{
+                        i += 1;
+                    }
+                }
+                if to == 0 {
+                    panic!("Each opening parenthesis needs a corresponding closing parenthesis");
+                }
+               
+                // we need to push the last argument
+                elements.push(ast(&lexems[from+1..i-1]));
+                
+                Tree {
+                    node: Node::Block,
+                    children: elements,
+                    has_value: true,
                 }
             },
             Lexem::Identifier(str) => {
@@ -345,10 +382,22 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                 }
             },
             Lexem::RightPar => {
+                dbg!(lexems);
+                dbg!(level);
                 panic!("Closing parenthesis with no matching opening parenthesis.")
             }
-            _ => {
-                panic!("Unknown lexem, found: {}", &lexems[i]);
+            Lexem::RightBracket => {
+                panic!("Closing bracket with no matching opening bracket.")
+            }
+            Lexem::Comma => {
+                dbg!(lexems);
+                dbg!(level);
+                panic!("Comma found outside of any function call");
+            }
+            Lexem::SemiColon => {
+                dbg!(lexems);
+                dbg!(level);
+                panic!("Semicolon found outside of any block");
             }
         };
         level.push(tree);
@@ -380,6 +429,9 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
 
     // or
     apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_or() });
+
+    // assign(=)
+    apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_assign() });
 
     if level.len() > 1 {
         panic!("The parsing couldn't finish. The reduced level resulted in:\n{:?}", level);

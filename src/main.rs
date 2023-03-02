@@ -5,12 +5,13 @@ mod ast;
 
 fn main() {
     let mut lexer = Lexer::new();
-    lexer.text = String::from("write(max(9, 1/2) == (3^3)/3, 1/0, 2, 3)");
+    lexer.text = String::from("2^5 == {x=2; x=x*2; x=x*2; x=x*2; x=x*2; x}");
     lexer.lex();
     println!("{}\n", &lexer.text);
     // lexer.print();
-    let ast = ast::ast(&lexer.lexems);
-    println!("\n\n{} = {}", lexer.text, ast.eval());
+
+    let mut evaluator = ast::eval::Evaluator::from_tree(ast::ast(&lexer.lexems));
+    println!("\n\n{} = {}", lexer.text, evaluator.eval());
 }
 
 // lexer.text = String::from("(-5 + 0.01)|km| + 3alpha ± 2m == sin(4) + 5|m/s| and 1 or 2 <=0< 1");
