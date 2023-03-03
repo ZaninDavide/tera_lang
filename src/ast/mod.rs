@@ -71,6 +71,12 @@ impl Tree {
     fn is_assign(&self) -> bool {
         match &self.node { Node::Operator(str) =>  { !self.has_value && str == "=" }, _ => false }
     }
+    fn is_if(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "if" }, _ => false }
+    }
+    fn is_else(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "else" }, _ => false }
+    }
 }
 
 impl std::convert::Into<Tree> for Node {
@@ -193,6 +199,82 @@ fn apply_postfixed_unary_operation_to_level(level: &mut Vec<Tree>, node_is_wante
             }
         }else{
             i += 1;
+        }
+    }
+}
+
+fn apply_if_statements_to_level(level: &mut Vec<Tree>) {
+    if level.len() < 3 { return; }
+    let mut i: i32 = (level.len() as i32) - 3; 
+    while i >= 0 {
+        if level[i as usize].is_if() 
+        {
+            let right2 = level.remove((i+2) as usize);
+            let right1 = level.remove((i+1) as usize);
+            let mut middle = &mut level[i as usize];
+            if right1.has_value {
+                if let Node::Block = right2.node {
+                    if right2.has_value {
+                        middle.children.push(right1); // condition
+                        middle.children.push(right2); // block
+                        middle.has_value = true;
+                        // we can keep going but we have to change i -> i - 1
+                        // level = A B C D E F G H I
+                        //           -^^ -> N
+                        // level = A N D E F G H I
+                        //         _^^
+                        i -= 1;
+                    }else{
+                        panic!("The second element after an 'if' keyword must be a valued block. Found '{:?}' instead, which has no value.", right2);
+                    }
+                }else{
+                    panic!("The second element after an 'if' keyword must be a valued block. Found '{:?}' instead, which is not a block", right2);
+                }
+            }else{
+                panic!("The first element after an 'if' keyword must be a valued expression. Found '{:?}' instead", right1);
+            }
+        }else{
+            i -= 1;
+        }
+    }
+}
+
+fn apply_else_statements_to_level(level: &mut Vec<Tree>) {
+    if level.len() < 3 { return; }
+    let mut i = level.len() - 2;
+    while i >= 1 {
+        if level[i].is_else() {
+            let right = level.remove(i + 1);
+            level.remove(i);
+            let left = level.get_mut(i - 1).unwrap();
+            if let Node::Operator(str) = &left.node {
+                if str == "if" {
+                    if let Node::Operator(str2) = &right.node {
+                        if str2 == "if" {
+                            left.children.push(right);
+                            // we can keep going but we have to change i -> i - 2
+                            // level = A B C D E F G H I
+                            //           ^^-^^ -> B
+                            // level = A B D E F G H I
+                            //         _^^
+                            i = (i as i16 -2).max(0) as usize;    
+                        }else{
+                            panic!("The 'else' operator needs an if statement or a block to it's right-hand side but '{:?}' was found", right);
+                        }
+                    }else if let Node::Block = &right.node {
+                        left.children.push(right);
+                        i  = (i as i16 -2).max(0) as usize;
+                    }else{
+                        panic!("The 'else' operator needs an if statement or a block to it's right-hand side but '{:?}' was found", right);
+                    }
+                }else{
+                    panic!("The 'else' operator needs an if statement to it's left-hand side but '{:?}' was found", left);
+                }
+            }else{                    
+                panic!("The 'else' operator needs an if statement to it's left-hand side but '{:?}' was found", left);
+            }
+        }else{
+            i -= 1;
         }
     }
 }
@@ -432,6 +514,12 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
 
     // assign(=)
     apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_assign() });
+
+    // if
+    apply_if_statements_to_level(&mut level);
+    
+    // else
+    apply_else_statements_to_level(&mut level);
 
     if level.len() > 1 {
         panic!("The parsing couldn't finish. The reduced level resulted in:\n{:?}", level);

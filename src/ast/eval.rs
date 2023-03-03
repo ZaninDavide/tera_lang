@@ -265,6 +265,33 @@ impl Tree {
                             panic!("The '=' operator is binary only but a number of {} children were found.", self.children.len());
                         }
                     }
+                    "if" => {
+                        if self.children.len() == 2 {
+                            // IF 
+                            if let RValue::Number(condition) = &self.children[0].eval(vars) {
+                                if *condition != 0.0 {
+                                    self.children[1].eval(vars)
+                                }else{
+                                    RValue::Void
+                                }
+                            }else{
+                                RValue::Void
+                            }
+                        }else if self.children.len() == 3 {
+                            // IF ELSE
+                            if let RValue::Number(condition) = &self.children[0].eval(vars) {
+                                if *condition != 0.0 {
+                                    self.children[1].eval(vars)
+                                }else{
+                                    self.children[2].eval(vars)
+                                }
+                            }else{
+                                self.children[2].eval(vars)
+                            }
+                        }else{
+                            panic!("The 'if' operator is a prefixed binary or ternary operator but a number of {} children were found.", self.children.len());
+                        }
+                    }
                     _ => {
                         panic!("Unknown operator '{}'", opname);
                     }

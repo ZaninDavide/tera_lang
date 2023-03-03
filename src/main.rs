@@ -5,7 +5,7 @@ mod ast;
 
 fn main() {
     let mut lexer = Lexer::new();
-    lexer.text = String::from("2^5 == {x=2; x=x*2; x=x*2; x=x*2; x=x*2; x}");
+    lexer.text = String::from("if 1 == 2-1 and 0 {x=2; if x > 2 {x=1000}; x} else if 0 { 9999 } else { 1234 }");
     lexer.lex();
     println!("{}\n", &lexer.text);
     // lexer.print();

@@ -44,7 +44,7 @@ impl Lexer {
         let mut i = 0;
 
         let string_operators = vec![
-            "or", "and", "nand", "xor"
+            "or", "and", "nand", "xor", "if", "else"
         ];
 
         'main: while i < n {
