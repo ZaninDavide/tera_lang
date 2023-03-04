@@ -1,0 +1,15 @@
+{
+    ciao = 0;
+    if 1 == 2-1 and !ciao {
+        x = 2; 
+        if x > 2 {
+            x = 1000;
+        }; 
+        x
+    } else if 0 { 
+        9999 
+    } else { 
+        write(ciao);
+        1234 * (2^2 / 4)
+    };
+}

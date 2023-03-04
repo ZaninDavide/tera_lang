@@ -84,7 +84,7 @@ impl Lexer {
                 // PLUS, MINUS, TIMES, DIVIDE, POWER, QUESTION
                 self.lexems.push(Lexem::Operator(String::from(char)));
                 i += 1;
-            }else if char == " " || char == "\t" {
+            }else if char == " " || char == "\t" || char == "\n" {
                 // SPACES
                 i += 1;
             }else if char == "=" {

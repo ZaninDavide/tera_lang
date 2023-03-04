@@ -3,15 +3,32 @@ use lexer::Lexer;
 
 mod ast;
 
-fn main() {
-    let mut lexer = Lexer::new();
-    lexer.text = String::from("if 1 == 2-1 and 0 {x=2; if x > 2 {x=1000}; x} else if 0 { 9999 } else { 1234 }");
-    lexer.lex();
-    println!("{}\n", &lexer.text);
-    // lexer.print();
+use std::fs;
+use std::time::{Instant};
 
-    let mut evaluator = ast::eval::Evaluator::from_tree(ast::ast(&lexer.lexems));
-    println!("\n\n{} = {}", lexer.text, evaluator.eval());
+fn main() {
+    let code = fs::read_to_string("sample.tr").expect("Unable to read the source file");
+
+    let iterations = 100;
+    let now = Instant::now();
+
+    for _ in 1..=iterations {
+        let mut lexer = Lexer::new();
+        lexer.text = code.clone();
+        lexer.lex();
+        // println!("{}\n", &lexer.text);
+        // lexer.print();
+        let mut evaluator = ast::eval::Evaluator::from_tree(ast::ast(&lexer.lexems));
+        evaluator.eval();
+        // println!("\n\n{} = {}", lexer.text, evaluator.eval());   
+    }
+
+    let elapsed_time = now.elapsed();
+    let time = elapsed_time.as_nanos() as f64 / 1e9;
+    println!("Running took {}s which is {}s per iteration.", time, time / iterations as f64);
+
+
+    println!("Finish")
 }
 
 // lexer.text = String::from("(-5 + 0.01)|km| + 3alpha ± 2m == sin(4) + 5|m/s| and 1 or 2 <=0< 1");
