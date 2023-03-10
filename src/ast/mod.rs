@@ -1,4 +1,5 @@
 use crate::lexer::Lexem;
+use crate::quantity::Unit;
 
 // declare submodule ast::eval
 pub mod eval;
@@ -11,6 +12,7 @@ pub enum Node {
     Variable(String),
     FunctionCall(String),
     Block,
+    UnitBlock(Unit, f64),
 }
 
 #[derive(std::clone::Clone, Debug)]
@@ -76,6 +78,12 @@ impl Tree {
     }
     fn is_else(&self) -> bool {
         match &self.node { Node::Operator(str) =>  { !self.has_value && str == "else" }, _ => false }
+    }
+    fn is_plus_minus(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "pm" }, _ => false }
+    }
+    fn is_unitblock(&self) -> bool {
+        match &self.node { Node::UnitBlock(_, _) =>  { !self.has_value }, _ => false }
     }
 }
 
@@ -279,11 +287,7 @@ fn apply_else_statements_to_level(level: &mut Vec<Tree>) {
     }
 }
 
-pub fn ast(lexems: &[Lexem]) -> Tree{
-    // TODO
-    // • unary operators (also + and - to handle)
-    // • add all other binary operators
-    
+pub fn ast(lexems: &[Lexem]) -> Tree{    
     if lexems.len() == 0 {
         return Tree {
             node: Node::None,
@@ -463,6 +467,14 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                     }  
                 }
             },
+            Lexem::UnitBlock(unit, factor) => {
+                i += 1;
+                Tree {
+                    node: Node::UnitBlock(unit.clone(), factor.clone()),
+                    children: Vec::new(),
+                    has_value: false,
+                }
+            }
             Lexem::RightPar => {
                 dbg!(lexems);
                 dbg!(level);
@@ -483,6 +495,7 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
             }
         };
         level.push(tree);
+        
     }
 
     // I don't use this method anymore because it's harder to deal with the special case of +(unary) and -(unary)
@@ -494,17 +507,26 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
     // question(?)
     apply_postfixed_unary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_question() });
 
+    // unit_block(|...|)
+    apply_postfixed_unary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_unitblock() });
+
     // elevation
     apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_pow() });
 
     // prod, div
     apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_prod() || tree.is_div() });
 
+    // pm
+    apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_plus_minus() });
+
     // sum, sub
     apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_sum() || tree.is_sub() });
 
     // eq(==), gt(>), gte(>=), lt(<), lte(<=)
-    apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_equal_equal() || tree.is_greater() || tree.is_greater_equal() || tree.is_less() || tree.is_less_equal() });
+    apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { 
+        tree.is_equal_equal() || tree.is_greater() || tree.is_greater_equal() || 
+        tree.is_less() || tree.is_less_equal() 
+    });
 
     // and
     apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_and() });
@@ -512,17 +534,19 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
     // or
     apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_or() });
 
-    // assign(=)
-    apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_assign() });
-
     // if
     apply_if_statements_to_level(&mut level);
     
     // else
     apply_else_statements_to_level(&mut level);
 
+    // assign(=)
+    apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_assign() });
+
     if level.len() > 1 {
         panic!("The parsing couldn't finish. The reduced level resulted in:\n{:?}", level);
+    }else if level.len() == 0 {
+        panic!("The parsing couldn't finish. The reduced level resulted empty");
     }
 
     level.remove(0)

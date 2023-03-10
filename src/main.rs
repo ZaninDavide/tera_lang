@@ -2,6 +2,7 @@ mod lexer;
 use lexer::Lexer;
 
 mod ast;
+mod quantity;
 
 use std::fs;
 use std::time::{Instant};
@@ -9,26 +10,38 @@ use std::time::{Instant};
 fn main() {
     let code = fs::read_to_string("sample.tr").expect("Unable to read the source file");
 
-    let iterations = 100;
-    let now = Instant::now();
+    let mut lexer = Lexer::new();
+    lexer.text = code.clone();
+    lexer.lex();
 
+    let abst = ast::ast(&lexer.lexems);
+    let mut evaluator = ast::eval::Evaluator::from_tree(abst);
+
+    let iterations = 1;
+    let now = Instant::now();
+    
     for _ in 1..=iterations {
-        let mut lexer = Lexer::new();
-        lexer.text = code.clone();
-        lexer.lex();
-        // println!("{}\n", &lexer.text);
-        // lexer.print();
-        let mut evaluator = ast::eval::Evaluator::from_tree(ast::ast(&lexer.lexems));
-        evaluator.eval();
-        // println!("\n\n{} = {}", lexer.text, evaluator.eval());   
+        let res = evaluator.eval();
+        println!("\n\n{} = {}", lexer.text, res);   
     }
 
     let elapsed_time = now.elapsed();
     let time = elapsed_time.as_nanos() as f64 / 1e9;
     println!("Running took {}s which is {}s per iteration.", time, time / iterations as f64);
 
+    /*
+    let x = Quantity{re: 1.0, im: 0.0, vre: 0.1*0.1, vim: 0.0, unit: quantity::Unit::unitless()};
+    let y = Quantity{re: 2.0, im: 1.0, vre: 0.1*0.1, vim: 0.0, unit: quantity::Unit::unitless()};
+    let mut z = x * y;
+    z.unit.metre = 2;
+    z.unit.second = -2;
+    println!("{}", z);
 
-    println!("Finish")
+    let theta = Quantity{re: 3.14/4.0, im: 0.0, vre: 3.14/40.0, vim: 0.0,unit: quantity::Unit::unitless()};
+    z = theta.sin();
+    z.unit.metre = 1;
+    println!("{}", z);
+    */
 }
 
 // lexer.text = String::from("(-5 + 0.01)|km| + 3alpha ± 2m == sin(4) + 5|m/s| and 1 or 2 <=0< 1");

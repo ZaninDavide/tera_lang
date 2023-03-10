@@ -1,4 +1,5 @@
 use unicode_segmentation::UnicodeSegmentation;
+use crate::quantity::Unit;
 
 #[derive(Debug)]
 pub enum Lexem {
@@ -10,7 +11,8 @@ pub enum Lexem {
     Number(String, String), // (representation, decorator)
     Operator(String),
     Comma,
-    SemiColon
+    SemiColon,
+    UnitBlock(Unit, f64),
 }
 impl std::fmt::Display for Lexem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -24,6 +26,7 @@ impl std::fmt::Display for Lexem {
             Lexem::Operator(s) => write!(f, "OP{{{}}}", s),
             Lexem::Comma => write!(f, "COMMA,"),
             Lexem::SemiColon => write!(f, "SC;"),
+            Lexem::UnitBlock(u, n) => write!(f, "UNIT{{{u},{n}}}"),
         }
     }
 }
@@ -34,7 +37,7 @@ pub struct Lexer {
 }
 impl Lexer {
     pub fn new() -> Lexer { Lexer{
-        text: String::from(""), lexems: vec![],
+        text: String::new(), lexems: vec![],
     }}
 
     pub fn lex(&mut self) {
@@ -44,7 +47,7 @@ impl Lexer {
         let mut i = 0;
 
         let string_operators = vec![
-            "or", "and", "nand", "xor", "if", "else"
+            "or", "and", "nand", "xor", "if", "else", "pm"
         ];
 
         'main: while i < n {
@@ -72,6 +75,59 @@ impl Lexer {
                 // RIGHT BRACKET
                 self.lexems.push(Lexem::RightBracket);
                 i += 1;
+            }else if char == "|" {
+                i += 1;
+                let mut found_end = false;
+                let mut unit_block_str: String = String::new(); 
+                'consumerUnitBlock: while i < chars.len() {
+                    if chars[i] == "|" { 
+                        found_end = true;
+                        i += 1;
+                        break 'consumerUnitBlock; 
+                    }else if chars[i] != " " && chars[i] != "\t" && chars[i] != "\n"{
+                        unit_block_str.push_str(chars[i]);
+                    }
+                    i += 1;
+                }
+                if found_end {
+                    let slash_split: Vec<&str> = unit_block_str.split('/').collect();
+                    let mut prod = "";
+                    let mut div= "";
+                    match slash_split.len() {
+                        1 => {
+                            prod = slash_split[0];
+                        }
+                        2 => {
+                            prod = slash_split[0];
+                            div = slash_split[1];
+                        }
+                        _ => {
+                            panic!("Couldn't parse the unit block '{}' because more than one '/' where found", unit_block_str);
+                        }
+                    }
+
+                    let mut unit: Unit = Unit::unitless();
+                    let mut factor: f64 = 1.0;
+                    for x in prod.split('.').map(|t| {
+                        if t == "" { return (Unit::unitless(), 1.0, 0.0); }
+                        crate::quantity::Unit::parse_single_unit(t)
+                    }) {
+                        if x.2 != 0.0 { panic!("Unit blocks cannot contain shifted units but '{unit_block_str}' was found.") }
+                        unit = unit * x.0;
+                        factor *= x.1;
+                    }
+                    for x in div.split('.').map(|t| {
+                        if t == "" { return (Unit::unitless(), 1.0, 0.0); }
+                        crate::quantity::Unit::parse_single_unit(t)
+                    }) {
+                        if x.2 != 0.0 { panic!("Unit blocks cannot contain shifted units but '{unit_block_str}' was found.") }
+                        unit = unit / x.0;
+                        factor /= x.1;
+                    }
+                    self.lexems.push(Lexem::UnitBlock(unit, factor));
+                }else{
+                    panic!("Opening '|' is missing a matching closing '|'.");
+                }
             }else if char == "," {
                 // COMMA
                 self.lexems.push(Lexem::Comma);
@@ -125,10 +181,14 @@ impl Lexer {
                     self.lexems.push(Lexem::Operator(String::from("<")));
                     i += 1;
                 }
+            }else if char == "±" {
+                // PLUS MINUS
+                self.lexems.push(Lexem::Operator(String::from("pm")));
+                i += 1;
             }else if "1234567890.".find(char).is_some() {
                 // NUMBER
                 let mut number = String::from(char);
-                let mut decorator = String::from("");
+                let mut decorator = String::new();
                 let mut inside_decorator = false;
                 let mut j = i + 1;
                 // consume all letters after these
@@ -141,9 +201,13 @@ impl Lexer {
                     }else if !inside_decorator && "'".find(char).is_some() {
                         // this character can be skipped example: 1'000 == 1000
                         j += 1;
-                    }else if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".find(char).is_some() {
+                    }else if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ°".find(char).is_some() {
                         // this char is part of the number's decorator
                         inside_decorator = true;
+                        decorator.push_str(char);
+                        j += 1;
+                    }else if inside_decorator && "0123456789".find(char).is_some() {
+                        // this char is part of the number's decorator
                         decorator.push_str(char);
                         j += 1;
                     } else{
