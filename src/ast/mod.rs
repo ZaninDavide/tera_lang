@@ -13,6 +13,7 @@ pub enum Node {
     FunctionCall(String),
     Block,
     UnitBlock(Unit, f64),
+    StringBlock(String),
 }
 
 #[derive(std::clone::Clone, Debug)]
@@ -473,6 +474,14 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                     node: Node::UnitBlock(unit.clone(), factor.clone()),
                     children: Vec::new(),
                     has_value: false,
+                }
+            }
+            Lexem::StringBlock(str) => {
+                i += 1;
+                Tree {
+                    node: Node::StringBlock(str.clone()),
+                    children: Vec::new(),
+                    has_value: true,
                 }
             }
             Lexem::RightPar => {

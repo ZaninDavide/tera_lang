@@ -3,16 +3,20 @@ use std::{collections::HashMap};
 use crate::ast::{Node, Tree};
 use crate::quantity::{Quantity, Unit};
 
+use unicode_segmentation::UnicodeSegmentation;
+
 #[derive(Clone, Debug)]
 pub enum RValue {
     Void,
     Number(Quantity),
+    String(String),
 }
 impl RValue {
     fn get_type(&self) -> &'static str {
         match &self {
             RValue::Void => "Void",
             RValue::Number(_) => "Number",
+            RValue::String(_) => "String",
         }
     }
 }
@@ -21,6 +25,7 @@ impl std::fmt::Display for RValue {
         match &self {
             RValue::Void => write!(f, "Void"),
             RValue::Number(n) => write!(f, "{n}"),
+            RValue::String(s) => write!(f, "{s}"),
         }
     }
 }
@@ -372,8 +377,9 @@ impl Tree {
                     "write" => {
                         if self.children.len() > 0 {
                             for v in self.children.iter() {
-                                print!("{}\n", v.eval(vars));
+                                print!("{}", v.eval(vars));
                             }
+                            print!("\n");
                             RValue::Void
                         }else{                        
                             panic!("The 'write' function takes one or more parameters but no parameters were found.")
@@ -399,7 +405,6 @@ impl Tree {
                 if let Some(rvalue) = vars.get(varname) {
                     (*rvalue).clone()
                 }else{
-                    // TODO: suggest a variable with a similar name
                     panic!("Unable to give value to:\n {:?}", &self);
                 }
             }
@@ -426,6 +431,64 @@ impl Tree {
                         panic!("Applying units is allowed only on unitless values but '{}' was found next to a unit block", res)
                     }
                 })
+            }
+            Node::StringBlock(str) => {
+                let mut evaluated_string = String::with_capacity(str.len());
+                let chars = str.graphemes(true).collect::<Vec<&str>>();
+
+                let mut i = 0;
+                let mut last_slash = false;
+                while i < chars.len() {
+                    if chars[i] == "{" && !last_slash {
+                        if chars.len() == i + 1 {
+                            panic!("Opening '{{' inside string is missing a corresponding '}}'");
+                        }
+                        let mut bcount = 1;
+                        let from = i + 1;
+                        let mut to = 0;
+                        'bracketConsumer: while i < chars.len() {
+                            if chars[i] == "}" { 
+                                bcount -= 1;
+                                if bcount == 0 { break 'bracketConsumer; }
+                            }else if chars[i] == "}" { 
+                                bcount += 1;
+                                i += 1;
+                            } else {
+                                to = i;
+                            }
+                            i += 1; 
+                        }
+                        if bcount != 0 {
+                            panic!("Opening '{{' inside string is missing a corresponding '}}'");
+                        }else{
+                            let varname = chars[from..=to].join("");
+                            if let Some(rvalue) = vars.get(varname.trim()) {
+                                let formated_variable_value = format!("{}", (*rvalue));
+                                evaluated_string.push_str(&formated_variable_value);
+                                i += 1;
+                            }else{
+                                panic!("Unable to give value to string block due to unknown variable: '{}'", varname);
+                            }
+                        }
+                    }else if chars[i] == "{" && last_slash {
+                        evaluated_string.push('{');
+                        last_slash = false;
+                        i += 1;
+                    }else if chars[i] == "\\" && !last_slash {
+                        last_slash = true;
+                        i += 1;
+                    } else if chars[i] == "\\" && last_slash {
+                        last_slash = false;
+                        evaluated_string.push('\\');
+                        i += 1;
+                    } else {
+                        last_slash = false;
+                        evaluated_string.push_str(chars[i]);
+                        i += 1;
+                    }
+                }
+
+                RValue::String(evaluated_string)
             }
             Node::None => {
                 RValue::Void

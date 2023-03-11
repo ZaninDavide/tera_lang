@@ -13,6 +13,7 @@ pub enum Lexem {
     Comma,
     SemiColon,
     UnitBlock(Unit, f64),
+    StringBlock(String),
 }
 impl std::fmt::Display for Lexem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -27,6 +28,7 @@ impl std::fmt::Display for Lexem {
             Lexem::Comma => write!(f, "COMMA,"),
             Lexem::SemiColon => write!(f, "SC;"),
             Lexem::UnitBlock(u, n) => write!(f, "UNIT{{{u},{n}}}"),
+            Lexem::StringBlock(s) => write!(f, "STRING{{{s}}}"),
         }
     }
 }
@@ -127,6 +129,40 @@ impl Lexer {
                     self.lexems.push(Lexem::UnitBlock(unit, factor));
                 }else{
                     panic!("Opening '|' is missing a matching closing '|'.");
+                }
+            }else if char == "\"" {
+                // String block
+                i += 1;
+                let mut found_end = false;
+                let mut str_block: String = String::new(); 
+                'consumerStringBlock: while i < chars.len() {
+                    if chars[i] == "\"" { 
+                        found_end = true;
+                        i += 1;
+                        break 'consumerStringBlock; 
+                    }else if chars[i] == "\\" {
+                        match chars[i + 1] {
+                            "n" => {
+                                i += 1; str_block.push_str("\n");
+                            }
+                            "t" => {
+                                i += 1; str_block.push_str("\t");
+                            }
+                            "\"" => {
+                                i += 1; str_block.push_str("\"");
+                            }
+                            // "\\" is done in evaluation
+                            _ => { str_block.push_str("\\"); }
+                        }
+                    }else{
+                        str_block.push_str(chars[i]);
+                    }
+                    i += 1;
+                }
+                if found_end {
+                    self.lexems.push(Lexem::StringBlock(str_block));
+                }else{
+                    panic!("Opening '\"' is missing a matching closing '\"'.");
                 }
             }else if char == "," {
                 // COMMA

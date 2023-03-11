@@ -22,12 +22,12 @@ fn main() {
     
     for _ in 1..=iterations {
         let res = evaluator.eval();
-        println!("\n\n{} = {}", lexer.text, res);   
+        // println!("\n\n{} = {}", lexer.text, res);   
     }
 
     let elapsed_time = now.elapsed();
-    let time = elapsed_time.as_nanos() as f64 / 1e9;
-    println!("Running took {}s which is {}s per iteration.", time, time / iterations as f64);
+    let time = elapsed_time.as_nanos() as f64 / 1e3;
+    println!("Running took {}µs which is {}µs per iteration.", time, time / iterations as f64);
 
     /*
     let x = Quantity{re: 1.0, im: 0.0, vre: 0.1*0.1, vim: 0.0, unit: quantity::Unit::unitless()};

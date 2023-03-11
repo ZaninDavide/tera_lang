@@ -3,30 +3,25 @@
     if ciao > -2.0 {
         ciao = ciao + 1'000 + 2i;
         RES = sin(ciao ± 0.1i);
-        write(RES);
     };
-    write(1m pm 0.1m);
-
+    
     n1 = 10; n2 = 15;
     doubled_max = if n1*2 > n2 { n1 } else { n2 };
-    write(doubled_max);
 
     test = (2m pm 1m) + i(20m pm 10m);
     test = (2 pm 1)|m| + i(20 pm 10)|m|;
-    write(test);
 
-    R1 = 100 pm 1;
-    R2 = 50 pm 1;
+    R1 = (100 pm 1)|ohm|;
+    R2 = (50 pm 1)|ohm|;
     Rtot = 1/ (1/R1 + 1/R2);
-    write(Rtot);
 
-    write(0);
-    write(0);
-    write(1dag);
-    write(10g2);
-    write((10 + 5M pm 2)|k2|);
-    write(10|J/s|);
-    write(10W);
-    write(1°C);
-    write(180deg);
+    x = 1cd + 1m;
+
+    a = "A"; b = "B"; c = "C";
+    abc = "{a}{b}{c}";
+    write(abc);
+
+    write("----------------------------------------------------------------------");
+    write("Rtot = {Rtot}!!");
+    write("----------------------------------------------------------------------");
 }
