@@ -7,8 +7,17 @@ mod quantity;
 use std::fs;
 use std::time::{Instant};
 
+use std::env;
+
 fn main() {
-    let code = fs::read_to_string("sample.tr").expect("Unable to read the source file");
+    let args: Vec<String> = env::args().collect();
+    let code;
+    if args.len() > 1 {
+        code = fs::read_to_string(&(args[1])[..]);
+    }else{
+        panic!("Source code path missing");
+    }
+    let code = code.expect("Unable to read the source file");
 
     let mut lexer = Lexer::new();
     lexer.text = code.clone();

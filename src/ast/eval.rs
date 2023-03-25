@@ -196,6 +196,12 @@ impl Tree {
                     "?" => {
                         eval_number_unary_operator!("?", self.children, vars, n0, if n0 != 0.0 {1.0.into()} else {0.0.into()})
                     }
+                    "&" => {
+                        eval_number_unary_operator!("&", self.children, vars, n0, n0.sigma())
+                    }
+                    "$" => {
+                        eval_number_unary_operator!("$", self.children, vars, n0, n0.value())
+                    }
                     "+" => {
                         if length == 1 {
                             let childval = self.children[0].eval(vars);
@@ -214,6 +220,7 @@ impl Tree {
                                 RValue::Number(n0) => {
                                     match childval1 {
                                         RValue::Number(n1) => {
+                                            if n0.unit != n1.unit { panic!("The binary '+' operator operates on quantities with the same units but '{}' and '{}' were found.", n0.unit, n1.unit) }
                                             return RValue::Number(n0 + n1);
                                         }
                                         _ => {
@@ -247,6 +254,7 @@ impl Tree {
                                 RValue::Number(n0) => {
                                     match childval1 {
                                         RValue::Number(n1) => {
+                                            if n0.unit != n1.unit { panic!("The binary '-' operator operates on quantities with the same units but '{}' and '{}' were found.", n0.unit, n1.unit) }
                                             return RValue::Number(n0 - n1);
                                         }
                                         _ => {
@@ -272,19 +280,34 @@ impl Tree {
                         eval_number_binary_operator!("/", self.children, vars, n0, n1, n0 / n1)
                     }
                     "==" => {
-                        eval_number_binary_operator!("==", self.children, vars, n0, n1, if n0 == n1 { 1.0.into() } else { 0.0.into() } )
+                        eval_number_binary_operator!("==", self.children, vars, n0, n1, {
+                            if n0.unit != n1.unit { panic!("The binary '==' operator operates on quantities with the same units but '{}' and '{}' were found.", n0.unit, n1.unit) }
+                            if n0 == n1 { 1.0.into() } else { 0.0.into() }
+                        } )
                     }
                     ">" => {
-                        eval_real_binary_operator!(">", self.children, vars, n0, n1, if n0.re > n1.re { 1.0.into() } else { 0.0.into() } )
+                        eval_real_binary_operator!(">", self.children, vars, n0, n1, {
+                            if n0.unit != n1.unit { panic!("The binary '>' operator operates on quantities with the same units but '{}' and '{}' were found.", n0.unit, n1.unit) }
+                            if n0.re > n1.re { 1.0.into() } else { 0.0.into() }
+                        } )
                     }
                     ">=" => {
-                        eval_real_binary_operator!(">=", self.children, vars, n0, n1, if n0.re >= n1.re { 1.0.into() } else { 0.0.into() } )
+                        eval_real_binary_operator!(">=", self.children, vars, n0, n1, {
+                            if n0.unit != n1.unit { panic!("The binary '>=' operator operates on quantities with the same units but '{}' and '{}' were found.", n0.unit, n1.unit) }
+                            if n0.re >= n1.re { 1.0.into() } else { 0.0.into() }
+                        } )
                     }
                     "<" => {
-                        eval_real_binary_operator!("<", self.children, vars, n0, n1, if n0.re < n1.re { 1.0.into() } else { 0.0.into() } )
+                        eval_real_binary_operator!("<", self.children, vars, n0, n1, {
+                            if n0.unit != n1.unit { panic!("The binary '<' operator operates on quantities with the same units but '{}' and '{}' were found.", n0.unit, n1.unit) }
+                            if n0.re < n1.re { 1.0.into() } else { 0.0.into() }
+                        } )
                     }
                     "<=" => {
-                        eval_real_binary_operator!("<=", self.children, vars, n0, n1, if n0.re <= n1.re { 1.0.into() } else { 0.0.into() } )
+                        eval_real_binary_operator!("<=", self.children, vars, n0, n1, {
+                            if n0.unit != n1.unit { panic!("The binary '<=' operator operates on quantities with the same units but '{}' and '{}' were found.", n0.unit, n1.unit) }
+                            if n0.re <= n1.re { 1.0.into() } else { 0.0.into() }
+                        } )
                     }
                     "and" => {
                         eval_number_binary_operator!("and", self.children, vars, n0, n1, if n0 != 0.0 && n1 != 0.0 {1.0.into()} else {0.0.into()} )
@@ -336,14 +359,11 @@ impl Tree {
                     }
                     "pm" => {
                         eval_number_binary_operator!("pm", self.children, vars, n0, n1, { 
-                            if n0.unit == n1.unit {
-                                let mut res = n0.clone();
-                                res.vre = n1.re*n1.re;
-                                res.vim = n1.im*n1.im;
-                                res    
-                            }else{
-                                panic!("The 'pm' operator operates only on quantities with the same units but '{}' and '{}' where found.", n0.unit, n1.unit);
-                            }
+                            if n0.unit != n1.unit { panic!("The 'pm' operator operates only on quantities with the same units but '{}' and '{}' where found.", n0.unit, n1.unit); }
+                            let mut res = n0.clone();
+                            res.vre = n1.re*n1.re;
+                            res.vim = n1.im*n1.im;
+                            res    
                         } )
                     }
                     _ => {
@@ -355,10 +375,16 @@ impl Tree {
                 match &fname[..] {
                     // ONE PARAMETER FUNCTIONS
                     "sin" => {
-                        eval_number_unary_function!("sin", self.children, vars, n, n.sin())
+                        eval_number_unary_function!("sin", self.children, vars, n, {
+                            if !n.unit.is_unitless() { panic!("The 'sin' function operates on unitless quantities but '{n}' was found.") }
+                            n.sin()
+                        })
                     }
                     "cos" => {
-                        eval_number_unary_function!("cos", self.children, vars, n, n.cos())
+                        eval_number_unary_function!("cos", self.children, vars, n, {
+                            if !n.unit.is_unitless() { panic!("The 'cos' function operates on unitless quantities but '{n}' was found.") }
+                            n.cos()
+                        })
                     }
                     "i" => {
                         // multiply by the imaginary unit
@@ -366,12 +392,39 @@ impl Tree {
                             re: -n.im, im: n.re, vre: n.vim, vim: n.vre, unit: n.unit
                         })
                     }
+                    "Re" | "real" => {
+                        eval_number_unary_function!("Re", self.children, vars, n, n.real_part())
+                    }
+                    "Im" | "imag" => {
+                        eval_number_unary_function!("Im", self.children, vars, n, n.imag_part())
+                    }
+                    "sigma" => {
+                        eval_number_unary_function!("sigma", self.children, vars, n, n.sigma())
+                    }
+                    "sigma2" => {
+                        eval_number_unary_function!("sigma2", self.children, vars, n, n.sigma2())
+                    }
+                    "value" => {
+                        eval_number_unary_function!("value", self.children, vars, n, n.value())
+                    }
+                    "abs" => {
+                        eval_number_unary_function!("value", self.children, vars, n, n.abs())
+                    }
+                    "arg" => {
+                        eval_number_unary_function!("value", self.children, vars, n, n.arg())
+                    }
                     // TWO PARAMETERS FUNCTIONS
                     "max" => {
-                        eval_number_binary_function!("max", self.children, vars, n0, n1, n0.max(&n1))
+                        eval_number_binary_function!("max", self.children, vars, n0, n1, {
+                            if n0.unit != n1.unit { panic!("The 'max' function operates on quantities with the same units but '{n0}' and '{n1}' were found.") }
+                            n0.max(&n1)
+                        })
                     }
                     "min" => {
-                        eval_number_binary_function!("max", self.children, vars, n0, n1, n0.min(&n1))
+                        eval_number_binary_function!("min", self.children, vars, n0, n1, {
+                            if n0.unit != n1.unit { panic!("The 'min' function operates on quantities with the same units but '{n0}' and '{n1}' were found.") }
+                            n0.min(&n1)
+                        })
                     }
                     // VOID FUNCTIONS
                     "write" => {
@@ -379,13 +432,12 @@ impl Tree {
                             for v in self.children.iter() {
                                 print!("{}", v.eval(vars));
                             }
-                            print!("\n");
                             RValue::Void
                         }else{                        
                             panic!("The 'write' function takes one or more parameters but no parameters were found.")
                         }
                     }
-                    "writeln" => {
+                    "print" => {
                         if self.children.len() > 0 {
                             for v in self.children.iter() {
                                 print!("{} ", v.eval(vars));
@@ -393,7 +445,45 @@ impl Tree {
                             print!("\n");
                             RValue::Void
                         }else{                        
-                            panic!("The 'writeln' function takes one or more parameters but no parameters were found.")
+                            panic!("The 'print' function takes one or more parameters but no parameters were found.")
+                        }
+                    }
+                    "assert" => {
+                        if self.children.len() == 1 || self.children.len() == 2 {
+                            let v = self.children[0].eval(vars);
+                            let mut should_panic = false;
+                            match v {
+                                RValue::Void => {
+                                    should_panic = true;
+                                }
+                                RValue::Number(n) => {
+                                    if n.re != 1.0 || n.im != 0.0 || n.vre != 0.0 || n.vim != 0.0 {
+                                        should_panic = true;
+                                    }
+                                }
+                                RValue::String(n) => {
+                                    should_panic = true;
+                                }
+                            }
+                            if should_panic {
+                                if self.children.len() == 2 {
+                                    panic!("{}", self.children[1].eval(vars));
+                                }else{
+                                    panic!();
+                                }
+                            }
+                            RValue::Void
+                        }else{                        
+                            panic!("The 'assert' function takes one or two parameters but {} parameters were found.", self.children.len())
+                        }
+                    }
+                    "error" => {
+                        if self.children.len() == 1 {
+                            panic!("{}", self.children[0].eval(vars));
+                        }else if self.children.len () == 0 {
+                            panic!();
+                        }else{
+                            panic!("The 'error' function takes one or two parameters but {} parameters were found.", self.children.len())
                         }
                     }
                     _ => {

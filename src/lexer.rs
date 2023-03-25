@@ -172,7 +172,7 @@ impl Lexer {
                 // SEMI-COLON
                 self.lexems.push(Lexem::SemiColon);
                 i += 1;
-            }else if "+-*/^?".find(char).is_some() {
+            }else if "+-*/^?&$".find(char).is_some() {
                 // PLUS, MINUS, TIMES, DIVIDE, POWER, QUESTION
                 self.lexems.push(Lexem::Operator(String::from(char)));
                 i += 1;
@@ -221,6 +221,25 @@ impl Lexer {
                 // PLUS MINUS
                 self.lexems.push(Lexem::Operator(String::from("pm")));
                 i += 1;
+            }else if char == "\\" {
+                if n > i + 1 {
+                    if chars[i + 1] == "\\" {
+                        i += 2;
+                        // this is a comment
+                        'commentConsumer: while i < n {
+                            if chars[i] != "\n" {
+                                i += 1;
+                            }else{
+                                i += 1;
+                                break 'commentConsumer;
+                            }
+                        }
+                    }else{
+                        panic!("Unknown symbol '\\'");
+                    }
+                }else{
+                    panic!("Unknown symbol '\\'.");
+                }
             }else if "1234567890.".find(char).is_some() {
                 // NUMBER
                 let mut number = String::from(char);
@@ -253,14 +272,14 @@ impl Lexer {
                     }
                 }
                 i = j;
-            }else if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_".find(char).is_some() {
+            }else if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω#%".find(char).is_some() {
                 // IDENTIFIER
                 let mut word = String::from(char);
                 let mut j = i + 1;
                 // consume all letters after these
                 'consumerL: while j < n {
                     char = chars[j];
-                    if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_".find(char).is_some() {
+                    if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω#%".find(char).is_some() {
                         // this char is part of the identifier name
                         word.push_str(char);
                         j += 1;

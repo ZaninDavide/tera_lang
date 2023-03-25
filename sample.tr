@@ -15,13 +15,38 @@
     R2 = (50 pm 1)|ohm|;
     Rtot = 1/ (1/R1 + 1/R2);
 
-    x = 1cd + 1m;
-
-    a = "A"; b = "B"; c = "C";
+    \\ Combining strings
+    a = "A"; b = "B"; c = "C"; \\ hellow = "ciao" + 2
     abc = "{a}{b}{c}";
-    write(abc);
+    print(abc);
 
-    write("----------------------------------------------------------------------");
-    write("Rtot = {Rtot}!!");
-    write("----------------------------------------------------------------------");
+    print("----------------------------------------------------------------------");
+    print("Rtot = {Rtot}");
+    print("----------------------------------------------------------------------");
+    
+    σ = sigma(Rtot);
+    Δx = 4m;
+    ω = (10 pm 1)|rad/s|;
+    π = 3.14159;
+    θ = π/2; 
+    θ = θ ± θ/10; 
+
+    print("\nθ = {θ}\n");
+
+    if σ > 0.1|ohm| {
+        \\ avviso che l'errore è troppo alto
+        print("😵 c'è un grosso errore su Rtot");
+        assert(σ > 0.1|ohm|, "Ovviamente non dovrebbe panicare");
+    }else{
+        error("Nice error that won't be seen here");
+    };
+    print("σ = {σ}\tΔx = {Δx}");
+    print("ω = {ω}");
+    write("ω = (", value(ω), ") ± (", &ω, ")\n");
+
+    z = (10 - 10i)|m| ± (0.1 + 0.1i)|m|;
+    write("z = ", abs(z), " ⋅ e^i(", arg(z), ")\n");
+    
+    x = 10|N.m/s2|;
+    print("x = {x}");
 }

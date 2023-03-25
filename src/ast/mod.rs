@@ -86,6 +86,12 @@ impl Tree {
     fn is_unitblock(&self) -> bool {
         match &self.node { Node::UnitBlock(_, _) =>  { !self.has_value }, _ => false }
     }
+    fn is_value(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "$" }, _ => false }
+    }
+    fn is_error(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "&" }, _ => false }
+    }
 }
 
 impl std::convert::Into<Tree> for Node {
@@ -164,7 +170,9 @@ fn apply_all_prefixed_unary_operations_to_level(level: &mut Vec<Tree>) {
         if 
             level[i as usize].is_bang() || // not(!) 
             ( ( left_ref.is_operator() || left_ref.is_none() ) && level[i as usize].is_sum() ) || // +(unary)
-            ( ( left_ref.is_operator() || left_ref.is_none() ) && level[i as usize].is_sub() ) // -(unary)
+            ( ( left_ref.is_operator() || left_ref.is_none() ) && level[i as usize].is_sub() ) || // -(unary)
+            ( ( left_ref.is_operator() || left_ref.is_none() ) && level[i as usize].is_value() ) || // $(value)
+            ( ( left_ref.is_operator() || left_ref.is_none() ) && level[i as usize].is_error() ) // &(error)
         {
             let right = level.remove((i+1) as usize);
             // now the operator has not changed index
@@ -407,6 +415,7 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                             }
 
                             if empty {
+                                i += 3;
                                 Tree {
                                     node: Node::FunctionCall(str.clone()),
                                     children: Vec::new(),
@@ -510,7 +519,7 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
     // I don't use this method anymore because it's harder to deal with the special case of +(unary) and -(unary)
     // _apply_prefixed_unary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_bang() });
 
-    // not(!), +(unary), -(unary)
+    // not(!), +(unary), -(unary), $(value), &(error)
     apply_all_prefixed_unary_operations_to_level(&mut level);
 
     // question(?)
