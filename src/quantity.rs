@@ -29,7 +29,7 @@ impl Unit {
         // find the end of the stringy part
         let mut sepid = 0;
         for i in 0..chars.len() {
-            if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ°".find(chars[i]).is_some() {
+            if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ°µμ".find(chars[i]).is_some() {
                 sepid = i;
             }else{
                 break;
@@ -66,7 +66,7 @@ impl Unit {
             "c"  => {factor = 1.0/1e2}
             "m"  => {
                 if chars.len() >= 2 {
-                    if (chars[0] == "u" && chars[1] == "u") || (chars[0] == "u" && chars[1] == "i") {
+                    if (chars[0] == "m" && chars[1] == "u") || (chars[0] == "m" && chars[1] == "i") {
                         skip = 2;
                         factor = 1.0/1e6; // mu == mi == µ
                     }else{
@@ -76,7 +76,7 @@ impl Unit {
                     factor = 1.0/1e3; // m
                 }
             }
-            "µ"=> {factor = 1.0/1e6;}
+            "µ" | "μ" => {factor = 1.0/1e6;} // warning: those are two different characters
             "n"  => {factor = 1.0/1e9;}
             "p"  => {factor = 1.0/1e12;}
             "f"  => {factor = 1.0/1e15;}
@@ -124,6 +124,16 @@ impl Unit {
             factor = std::f64::consts::PI / 180.0;
             skip = 0;
         }
+        if joined_unit_str == "%" {
+            // percentage
+            factor = 0.01;
+            skip = 0;
+        }
+        if joined_unit_str == "pi" || joined_unit_str == "π" {
+            // π
+            factor = std::f64::consts::PI;
+            skip = 0;
+        }
 
         if unit_str.len() > skip {
             match &unit_str[skip..].join("")[..] {
@@ -137,8 +147,14 @@ impl Unit {
                 "A" => { unit.ampere = 1; }
 
                 // scales
-                "°" | "deg" => { }
                 "°C" => { unit.kelvin = 1; }
+                
+                // unitless
+                "°" | "deg" | "%" | "pi" | "π"=> { }
+
+                // not SI
+                "L" => { unit.metre = 3; factor = factor * 0.001}
+                "eV" => { factor *= 1.602176565e-19; unit.kilogram = 1; unit.metre = 2; unit.second = -2; }
 
                 // derived units
                 "Hz" => { unit.second = -1; }
@@ -149,7 +165,7 @@ impl Unit {
                 "C" => { unit.second = 1; unit.ampere = 1; }
                 "V" => { unit.kilogram = 1; unit.metre = 2; unit.second = -3; unit.ampere = -1; }
                 "F" => { unit.kilogram = -1; unit.metre = -2; unit.second = 4; unit.ampere = 2; }
-                "ohm" => { unit.kilogram = 1; unit.metre = 2; unit.second = -3; unit.ampere = -2; }
+                "ohm" | "Ω" => { unit.kilogram = 1; unit.metre = 2; unit.second = -3; unit.ampere = -2; }
                 "S" => { unit.kilogram = -1; unit.metre = -2; unit.second = 3; unit.ampere = 2; }
                 "Wb" => { unit.kilogram = 1; unit.metre = 2; unit.second = -2; unit.ampere = -1; }
                 "Tesla" => { unit.kilogram = 1; unit.second = -2; unit.ampere = -1; }
@@ -164,7 +180,7 @@ impl Unit {
         }
 
         if chars.len() - 1 >= sepid + 1 { 
-            let exponent_str = &text[sepid+1..];
+            let exponent_str = &chars[sepid+1..].join("");
             let exponent: Result<i8, _> = exponent_str.parse();
             match exponent {
                 Result::Ok(exp) => {
@@ -353,7 +369,7 @@ impl std::fmt::Display for ComposedUnit {
         disp_unit!(self, string, first, counter, C, "C");
         disp_unit!(self, string, first, counter, V, "V");
         disp_unit!(self, string, first, counter, F, "F");
-        disp_unit!(self, string, first, counter, ohm, "ohm");
+        disp_unit!(self, string, first, counter, ohm, "Ω");
         disp_unit!(self, string, first, counter, S, "S");
         disp_unit!(self, string, first, counter, Wb, "Wb");
         disp_unit!(self, string, first, counter, Tesla, "Tesla");

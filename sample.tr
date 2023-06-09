@@ -33,14 +33,14 @@
 
     print("\nθ = {θ}\n");
 
-    if σ > 0.1|ohm| {
+    if σ > 0.1Ω {
         \\ avviso che l'errore è troppo alto
         print("😵 c'è un grosso errore su Rtot");
-        assert(σ > 0.1|ohm|, "Ovviamente non dovrebbe panicare");
+        assert(σ > 0.1Ω, "Ovviamente non dovrebbe panicare");
     }else{
         error("Nice error that won't be seen here");
     };
-    print("σ = {σ}\tΔx = {Δx}");
+    print("σ = {σ}\t\tΔx = {Δx}");
     print("ω = {ω}");
     write("ω = (", value(ω), ") ± (", &ω, ")\n");
 
@@ -49,4 +49,7 @@
     
     x = 10|N.m/s2|;
     print("x = {x}");
+
+    a = 5μm;
+    print("a = {a}");
 }

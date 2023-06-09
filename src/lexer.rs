@@ -256,30 +256,27 @@ impl Lexer {
                     }else if !inside_decorator && "'".find(char).is_some() {
                         // this character can be skipped example: 1'000 == 1000
                         j += 1;
-                    }else if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ°".find(char).is_some() {
+                    }else if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789°Ω%πµμ".find(char).is_some() {
                         // this char is part of the number's decorator
                         inside_decorator = true;
                         decorator.push_str(char);
                         j += 1;
-                    }else if inside_decorator && "0123456789".find(char).is_some() {
-                        // this char is part of the number's decorator
-                        decorator.push_str(char);
-                        j += 1;
-                    } else{
+                    }else{
                         // the number is finished
+                        print!("{}", char);
                         self.lexems.push(Lexem::Number(number, decorator));
                         break 'consumerN;
                     }
                 }
                 i = j;
-            }else if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω#%".find(char).is_some() {
+            }else if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜµμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω#".find(char).is_some() {
                 // IDENTIFIER
                 let mut word = String::from(char);
                 let mut j = i + 1;
                 // consume all letters after these
                 'consumerL: while j < n {
                     char = chars[j];
-                    if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω#%".find(char).is_some() {
+                    if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜµμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω#".find(char).is_some() {
                         // this char is part of the identifier name
                         word.push_str(char);
                         j += 1;
