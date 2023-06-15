@@ -17,6 +17,7 @@
 
     \\ Combining strings
     a = "A"; b = "B"; c = "C"; \\ hellow = "ciao" + 2
+    stringa = "A {b} C";
     abc = "{a}{b}{c}";
     print(abc);
 
@@ -50,6 +51,15 @@
     x = 10|N.m/s2|;
     print("x = {x}");
 
-    a = 5μm;
+    a = 5μm ± 1nm;
     print("a = {a}");
+    print("a = {a|nm|}");
+
+    C = (0.1 ± 0.05)|L|;
+    print("C = {C|L|}");
+    print("C = {C}");
+
+    temp = 10K;
+    print("temp = {temp|K|}");
+
 }

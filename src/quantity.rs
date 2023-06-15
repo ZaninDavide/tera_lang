@@ -153,7 +153,7 @@ impl Unit {
                 "°" | "deg" | "%" | "pi" | "π"=> { }
 
                 // not SI
-                "L" => { unit.metre = 3; factor = factor * 0.001}
+                "L" => { unit.metre = 3; factor = factor / 1000.0; }
                 "eV" => { factor *= 1.602176565e-19; unit.kilogram = 1; unit.metre = 2; unit.second = -2; }
 
                 // derived units
@@ -197,6 +197,55 @@ impl Unit {
                     panic!("Unknown unit expression '{}' due to unknown exponent '{}'. Parsing error: '{}'", text, exponent_str, e);
                 }
             }    
+        }
+
+        (unit, factor, shift)
+    }
+
+    pub fn parse_unit_block(text: &str) -> (Unit, f64, f64) {
+        let slash_split: Vec<&str> = text.split('/').collect();
+        let mut prod = "";
+        let mut div= "";
+        match slash_split.len() {
+            1 => {
+                prod = slash_split[0];
+            }
+            2 => {
+                prod = slash_split[0];
+                div = slash_split[1];
+            }
+            _ => {
+                panic!("Couldn't parse the unit block '{}' because more than one '/' where found", text);
+            }
+        }
+
+        let mut unit: Unit = Unit::unitless();
+        let mut factor: f64 = 1.0;
+        let mut shift = 0.0;
+
+        let mut units_counter = 0;
+
+        for x in prod.split('.').map(|t| {
+            if t == "" { return (Unit::unitless(), 1.0, 0.0); }
+            units_counter += 1;
+            crate::quantity::Unit::parse_single_unit(t)
+        }) {
+            unit = unit * x.0;
+            factor *= x.1;
+            shift += x.2;
+        }
+        for x in div.split('.').map(|t| {
+            if t == "" { return (Unit::unitless(), 1.0, 0.0); }
+            units_counter += 1;
+            crate::quantity::Unit::parse_single_unit(t)
+        }) {
+            unit = unit / x.0;
+            factor /= x.1;
+            shift += x.2;
+        }
+
+        if shift != 0.0 && units_counter > 1 {
+            panic!("Shifted units cannot be composed with other units: '{text}'");
         }
 
         (unit, factor, shift)
@@ -529,8 +578,8 @@ impl ops::Mul<f64> for Quantity {
         Quantity {
             re: self.re * factor,
             im: self.im * factor,
-            vre: self.vre * factor,
-            vim: self.vim * factor,
+            vre: self.vre * factor * factor,
+            vim: self.vim * factor * factor,
             unit: self.unit
         }
     }
@@ -675,5 +724,75 @@ impl std::fmt::Display for Quantity {
                 }
             }
         }
+    }
+}
+
+impl Quantity {
+    pub fn to_text(&self, unit_str: String) -> String {
+        let (unit, factor, shift) = if unit_str != "" {
+            Unit::parse_unit_block(&unit_str)
+        } else {
+            (Unit::unitless(), 1.0, 0.0)
+        };
+
+        if unit != self.unit && unit != Unit::unitless() {
+            panic!("Trying to display a quantity with units '{}' using '{}' which is interpreted as '{}'", self.unit, unit_str, unit);
+        }
+
+        // values to display
+        let values: Quantity = Quantity { 
+            re: (self.re + shift) / factor, 
+            im: self.im / factor, 
+            vre: self.vre / factor / factor, 
+            vim: self.vim / factor / factor, 
+            unit: unit,
+        };
+
+        if values.is_real() {
+            if self.unit.is_unitless() {
+                if values.vre == 0.0 {
+                    return format!("{}", values.re);
+                }else{
+                    return format!("{} ± {}", values.re, values.vre.sqrt());
+                }
+            }else{
+                if values.vre == 0.0 {
+                    if unit_str != "" {
+                        return format!("{}{}", values.re, unit_str);
+                    }else{
+                        return format!("{}{}", values.re, self.unit);
+                    }
+                }else{
+                    if unit_str != "" {
+                        return format!("({} ± {}){}", values.re, values.vre.sqrt(), unit_str);
+                    }else{
+                        return format!("({} ± {}){}", values.re, values.vre.sqrt(), self.unit);
+                    }
+                }
+            }
+        }else{
+            if self.unit.is_unitless() {
+                if values.vre == 0.0 && values.vim == 0.0 {
+                    return format!("{} + {}i", values.re, values.im);
+                }else{
+                    return format!("({} ± {}) + i({} ± {})", values.re, values.vre.sqrt(), values.im, values.vim.sqrt());
+                }
+            }else{
+                if values.vre == 0.0 && values.vim == 0.0 {
+                    if unit_str != "" {
+                        return format!("({} + {}i){}", values.re, values.im, unit_str);
+                    }else{
+                        return format!("({} + {}i){}", values.re, values.im, self.unit);
+                    }
+                }else{
+                    if unit_str != "" {
+                        return format!("({} ± {}){} + i({} ± {}){}", values.re, values.vre.sqrt(), unit_str, values.im, values.vim.sqrt(), unit_str);
+                    }else{
+                        return format!("({} ± {}){} + i({} ± {}){}", values.re, values.vre.sqrt(), self.unit, values.im, values.vim.sqrt(), self.unit);
+                    }
+                }
+            }
+        }
+
     }
 }

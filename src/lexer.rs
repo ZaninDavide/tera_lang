@@ -12,7 +12,7 @@ pub enum Lexem {
     Operator(String),
     Comma,
     SemiColon,
-    UnitBlock(Unit, f64),
+    UnitBlock(Unit, f64, f64), // unit, factor, shift
     StringBlock(String),
 }
 impl std::fmt::Display for Lexem {
@@ -27,7 +27,7 @@ impl std::fmt::Display for Lexem {
             Lexem::Operator(s) => write!(f, "OP{{{}}}", s),
             Lexem::Comma => write!(f, "COMMA,"),
             Lexem::SemiColon => write!(f, "SC;"),
-            Lexem::UnitBlock(u, n) => write!(f, "UNIT{{{u},{n}}}"),
+            Lexem::UnitBlock(u, n, m) => write!(f, "UNIT{{{u},{n},{m}}}"),
             Lexem::StringBlock(s) => write!(f, "STRING{{{s}}}"),
         }
     }
@@ -92,41 +92,8 @@ impl Lexer {
                     i += 1;
                 }
                 if found_end {
-                    let slash_split: Vec<&str> = unit_block_str.split('/').collect();
-                    let mut prod = "";
-                    let mut div= "";
-                    match slash_split.len() {
-                        1 => {
-                            prod = slash_split[0];
-                        }
-                        2 => {
-                            prod = slash_split[0];
-                            div = slash_split[1];
-                        }
-                        _ => {
-                            panic!("Couldn't parse the unit block '{}' because more than one '/' where found", unit_block_str);
-                        }
-                    }
-
-                    let mut unit: Unit = Unit::unitless();
-                    let mut factor: f64 = 1.0;
-                    for x in prod.split('.').map(|t| {
-                        if t == "" { return (Unit::unitless(), 1.0, 0.0); }
-                        crate::quantity::Unit::parse_single_unit(t)
-                    }) {
-                        if x.2 != 0.0 { panic!("Unit blocks cannot contain shifted units but '{unit_block_str}' was found.") }
-                        unit = unit * x.0;
-                        factor *= x.1;
-                    }
-                    for x in div.split('.').map(|t| {
-                        if t == "" { return (Unit::unitless(), 1.0, 0.0); }
-                        crate::quantity::Unit::parse_single_unit(t)
-                    }) {
-                        if x.2 != 0.0 { panic!("Unit blocks cannot contain shifted units but '{unit_block_str}' was found.") }
-                        unit = unit / x.0;
-                        factor /= x.1;
-                    }
-                    self.lexems.push(Lexem::UnitBlock(unit, factor));
+                    let (unit, factor, shift) = Unit::parse_unit_block(&unit_block_str);
+                    self.lexems.push(Lexem::UnitBlock(unit, factor, shift));
                 }else{
                     panic!("Opening '|' is missing a matching closing '|'.");
                 }
@@ -263,7 +230,7 @@ impl Lexer {
                         j += 1;
                     }else{
                         // the number is finished
-                        print!("{}", char);
+                        // print!("{}", char);
                         self.lexems.push(Lexem::Number(number, decorator));
                         break 'consumerN;
                     }

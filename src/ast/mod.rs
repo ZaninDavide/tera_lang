@@ -12,7 +12,7 @@ pub enum Node {
     Variable(String),
     FunctionCall(String),
     Block,
-    UnitBlock(Unit, f64),
+    UnitBlock(Unit, f64, f64), // unit, factor, shift
     StringBlock(String),
 }
 
@@ -84,7 +84,7 @@ impl Tree {
         match &self.node { Node::Operator(str) =>  { !self.has_value && str == "pm" }, _ => false }
     }
     fn is_unitblock(&self) -> bool {
-        match &self.node { Node::UnitBlock(_, _) =>  { !self.has_value }, _ => false }
+        match &self.node { Node::UnitBlock(_, _, _) =>  { !self.has_value }, _ => false }
     }
     fn is_value(&self) -> bool {
         match &self.node { Node::Operator(str) =>  { !self.has_value && str == "$" }, _ => false }
@@ -477,10 +477,10 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                     }  
                 }
             },
-            Lexem::UnitBlock(unit, factor) => {
+            Lexem::UnitBlock(unit, factor, shift) => {
                 i += 1;
                 Tree {
-                    node: Node::UnitBlock(unit.clone(), factor.clone()),
+                    node: Node::UnitBlock(unit.clone(), factor.clone(), shift.clone()),
                     children: Vec::new(),
                     has_value: false,
                 }

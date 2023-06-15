@@ -509,12 +509,13 @@ impl Tree {
                     }
                     res
             }
-            Node::UnitBlock(unit, factor) => {
+            Node::UnitBlock(unit, factor, shift) => {
                 // assign this unit to this quantity
                 eval_number_unary_operator!("UnitBlock", self.children, vars, n0, {
                     let mut res = n0.clone(); 
                     if res.unit == Unit::unitless() {
                         res.unit = unit.clone();
+                        res.re += shift;
                         res = res * (*factor);
                         res
                     }else{
@@ -531,33 +532,74 @@ impl Tree {
                 while i < chars.len() {
                     if chars[i] == "{" && !last_slash {
                         if chars.len() == i + 1 {
-                            panic!("Opening '{{' inside string is missing a corresponding '}}'");
+                            panic!("Opening '{{' inside string is missing a corresponding '}}': {str}");
                         }
                         let mut bcount = 1;
-                        let from = i + 1;
-                        let mut to = 0;
+                        let varname_from: usize = i + 1;
+                        let mut varname_to: usize = 0;
+                        let mut unit_from: usize = 0;
+                        let mut unit_to: usize = 0;
+                        i += 1;
                         'bracketConsumer: while i < chars.len() {
                             if chars[i] == "}" { 
                                 bcount -= 1;
                                 if bcount == 0 { break 'bracketConsumer; }
-                            }else if chars[i] == "}" { 
+                            }else if chars[i] == "{" {
                                 bcount += 1;
                                 i += 1;
+                                if bcount > 1 {
+                                    panic!("String block cannot contain nested brackets: '{str}'"); 
+                                }
+                            } else if chars[i] == "|" {
+                                // unit block
+                                if chars.len() == i + 1 {
+                                    panic!("Opening '|' inside string is missing a corresponding '|': {str}");
+                                }
+                                unit_from = i + 1;
+                                i += 1;
+                                'unitConsumer: while i < chars.len() {
+                                    if chars[i] == "|" {
+                                        unit_to = i - 1;
+                                        break 'unitConsumer;
+                                    }else{
+                                        i += 1;                                        
+                                    }
+                                }
+                                if unit_to == 0 {
+                                    panic!("String block cannot contain nested brackets: '{str}'"); 
+                                }
+                            } else if unit_to != 0 && chars[i] != " " {
+                                panic!("String block should finish with the name of the unit: '{str}'");
+                            } else if unit_to != 0 && chars[i] == " " {
+                                // just skip the space
                             } else {
-                                to = i;
+                                varname_to = i;
                             }
                             i += 1; 
                         }
                         if bcount != 0 {
-                            panic!("Opening '{{' inside string is missing a corresponding '}}'");
+                            panic!("Opening '{{' inside string is missing a corresponding '}}': '{str}'");
                         }else{
-                            let varname = chars[from..=to].join("");
+                            let varname: String = chars[varname_from..=varname_to].join("");
                             if let Some(rvalue) = vars.get(varname.trim()) {
-                                let formated_variable_value = format!("{}", (*rvalue));
+                                let unit_full_string: String = chars[unit_from..=unit_to].join("");
+                                let unit_string: String = if unit_to > 0 {
+                                    unit_full_string.trim().to_owned()
+                                } else {
+                                    String::new()
+                                };
+                                let formated_variable_value = match rvalue {
+                                    RValue::Number(q) => {
+                                        q.to_text(unit_string)
+                                    }
+                                    _ => {
+                                        format!("{}", (*rvalue))
+                                    }
+                                };
                                 evaluated_string.push_str(&formated_variable_value);
                                 i += 1;
                             }else{
-                                panic!("Unable to give value to string block due to unknown variable: '{}'", varname);
+                                panic!("Unable to give value to string block due to unknown variable: '{}'", varname.trim());
                             }
                         }
                     }else if chars[i] == "{" && last_slash {
