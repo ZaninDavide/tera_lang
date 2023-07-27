@@ -10,6 +10,7 @@ pub enum RValue {
     Void,
     Number(Quantity),
     String(String),
+    Matrix(usize, usize, Vec<RValue>),
 }
 impl RValue {
     fn get_type(&self) -> &'static str {
@@ -17,6 +18,7 @@ impl RValue {
             RValue::Void => "Void",
             RValue::Number(_) => "Number",
             RValue::String(_) => "String",
+            RValue::Matrix(_, _, _) => "Matrix",
         }
     }
 }
@@ -26,6 +28,28 @@ impl std::fmt::Display for RValue {
             RValue::Void => write!(f, "Void"),
             RValue::Number(n) => write!(f, "{n}"),
             RValue::String(s) => write!(f, "{s}"),
+            RValue::Matrix(w,h,v) => {
+                // TODO: implement a nicer gird-form display for matrices
+                let mut str = String::new();
+                for j in 0..(*h) {
+                    for i in 0..(*w) {
+                        let cell_str = match &v[j*w + i] {
+                            RValue::String(_) => { format!("\"{}\"", v[j*w + i]) }
+                            RValue::Number(_) => { format!("{}", v[j*w + i]) }
+                            RValue::Matrix(_,_,_) => { format!("{}", v[j*w + i]) }
+                            RValue::Void => { format!("{}", v[j*w + i]) }
+                        };
+                        str.push_str(&cell_str);
+                        if i < w - 1 {
+                            str.push_str(", ");
+                        }
+                    }
+                    if j < h - 1 {
+                        str.push_str("; ");
+                    }
+                }
+                write!(f, "Matrix {h}×{w}: [{str}]")
+            },
         }
     }
 }
@@ -461,9 +485,8 @@ impl Tree {
                                         should_panic = true;
                                     }
                                 }
-                                RValue::String(n) => {
-                                    should_panic = true;
-                                }
+                                RValue::String(_) => { should_panic = true; }
+                                RValue::Matrix(_, _, _) => { should_panic = true; }
                             }
                             if should_panic {
                                 if self.children.len() == 2 {
@@ -621,6 +644,85 @@ impl Tree {
                 }
 
                 RValue::String(evaluated_string)
+            }
+            Node::MatrixBlock(width, height) => {
+                let mut fields = Vec::new();
+                
+                let l = self.children.len();
+                for i in 0..l {
+                    let value = self.children[i].eval(vars);
+                    fields.push(value);
+                }
+
+                RValue::Matrix(*width, *height, fields)
+            }
+            Node::MatrixIndexing(matrix_name) => {
+                let index0 = if self.children.len() > 0 { self.children[0].eval(vars) } else { RValue::Void };
+                let index1 = if self.children.len() > 1 { self.children[1].eval(vars) } else { RValue::Void };
+
+                let original_index_y: i64 = match index0 {
+                    RValue::Number(n) => {
+                        if n.im == 0.0 && n.vim == 0.0 && n.vre == 0.0 {
+                            let i = n.re.floor();
+                            if n.re == i && n.re != 0.0 {
+                                i as i64
+                            }else{
+                                panic!("Only pure, integer, non zero values are allowed when indexing a matrix but '{}' was found.", n);
+                            }
+                        } else{
+                            panic!("Only pure, integer, non zero values are allowed when indexing a matrix but '{}' was found.", n);
+                        }
+                    }
+                    other => {
+                        panic!("Cannot index matrix with type '{}', '{}' was found.", other.get_type(), other);
+                    }
+                };
+
+
+                if let Some(rvalue) = vars.get(matrix_name) {
+                    match rvalue {
+                        RValue::Matrix(w, h, v) => {
+                            if self.children.len() == 1 && *w == 1usize {
+                                let index_y = if original_index_y < 0 { (*h as i64) + original_index_y + 1} else { original_index_y } - 1;
+                                if index_y >= 0 && index_y < (*h as i64) { 
+                                    v[index_y as usize].clone()
+                                }else{
+                                    panic!("Index must not exceed Matrix bounds. Matrix '{matrix_name}' is '{h}×{w}' but '{original_index_y}' was found.")
+                                }
+                            }else if self.children.len() == 2 {
+                                let original_index_x: i64 = match index1 {
+                                    RValue::Number(n) => {
+                                        if n.im == 0.0 && n.vim == 0.0 && n.vre == 0.0 {
+                                            let i = n.re.floor();
+                                            if n.re == i && n.re != 0.0 {
+                                                i as i64
+                                            }else{
+                                                panic!("Only pure, integer, non zero values are allowed when indexing a matrix but '{}' was found.", n);
+                                            }
+                                        } else{
+                                            panic!("Only pure, integer, non zero values are allowed when indexing a matrix but '{}' was found.", n);
+                                        }
+                                    }
+                                    other => {
+                                        panic!("Cannot index matrix with type '{}'.", other.get_type());
+                                    }
+                                };
+                                let index_x = if original_index_x < 0 { (*w as i64) + original_index_x + 1} else { original_index_x } - 1;
+                                let index_y = if original_index_y < 0 { (*h as i64) + original_index_y + 1} else { original_index_y } - 1;
+                                v[(index_y*(*w as i64) + index_x) as usize].clone()
+                            }else if self.children.len() == 1 && *w != 1usize {
+                                panic!("Cannot index a matrix using one index unless it is a column vector but {matrix_name} is '{h}×{w}' has '{h}' rows and '{w}' columns.");
+                            }else{
+                                panic!("Cannot index a matrix using '{}' indices", self.children.len());
+                            }
+                        }
+                        _ => {
+                            panic!("Unable to index inside '{matrix_name}' because it is of type '{}'. Only variables of type 'Matrix' can be indexed.", rvalue.get_type());
+                        }
+                    }
+                }else{
+                    panic!("Unable to give value to:\n {:?}", &self);
+                }
             }
             Node::None => {
                 RValue::Void

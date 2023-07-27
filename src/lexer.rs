@@ -7,6 +7,8 @@ pub enum Lexem {
     RightPar,
     LeftBracket,
     RightBracket,
+    LeftSqBracket,
+    RightSqBracket,
     Identifier(String),
     Number(String, String), // (representation, decorator)
     Operator(String),
@@ -22,6 +24,8 @@ impl std::fmt::Display for Lexem {
             Lexem::RightPar => write!(f, "RP)"),
             Lexem::LeftBracket => write!(f, "LB{{"),
             Lexem::RightBracket => write!(f, "RB}}"),
+            Lexem::LeftSqBracket => write!(f, "LSB["),
+            Lexem::RightSqBracket => write!(f, "RSB]"),
             Lexem::Identifier(s) => write!(f, "ID{{{}}}", s),
             Lexem::Number(s, d) => write!(f, "NUM{{{}, \"{}\"}}", s, d),
             Lexem::Operator(s) => write!(f, "OP{{{}}}", s),
@@ -76,6 +80,14 @@ impl Lexer {
             }else if char == "}" {
                 // RIGHT BRACKET
                 self.lexems.push(Lexem::RightBracket);
+                i += 1;
+            }else if char == "[" {
+                // LEFT SQUARE BRACKET
+                self.lexems.push(Lexem::LeftSqBracket);
+                i += 1;
+            }else if char == "]" {
+                // RIGHT SQUARE BRACKET
+                self.lexems.push(Lexem::RightSqBracket);
                 i += 1;
             }else if char == "|" {
                 i += 1;

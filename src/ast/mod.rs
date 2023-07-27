@@ -14,6 +14,8 @@ pub enum Node {
     Block,
     UnitBlock(Unit, f64, f64), // unit, factor, shift
     StringBlock(String),
+    MatrixBlock(usize, usize), // width, height
+    MatrixIndexing(String),
 }
 
 #[derive(std::clone::Clone, Debug)]
@@ -342,9 +344,86 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                     }
                 }
                 if parcount != 0 {
-                    panic!("Each opening parenthesis needs a corresponding closing parenthesis. parcount: {}", parcount);
+                    panic!("Each opening parenthesis needs a corresponding closing parenthesis. Parcount: {parcount}");
                 }else{
                     ast(&lexems[from+1..to])
+                }
+            },
+            Lexem::LeftSqBracket => {
+                // this is a matrix
+                let mut bracketcount = 1;
+                let mut elements = Vec::new();
+                let mut cur_matrix_width: usize = 0;
+                let mut first_row = true;
+                let mut matrix_width: usize = 0;
+                let mut matrix_height: usize = 0;
+                let mut element_from: usize = i;
+                let mut last_was_semicolon: bool = false;
+                let mut last_was_comma: bool = false;
+                i += 1;
+                'consumerPar: while i < lexems.len() { 
+                    if let Lexem::LeftSqBracket = lexems[i] {
+                        bracketcount += 1;
+                    }else if let Lexem::RightSqBracket = lexems[i] {
+                        bracketcount -= 1;
+                    }
+                    if bracketcount == 0 {
+                        i += 1;
+                        break 'consumerPar;
+                    }else if bracketcount == 1 {
+                        if let Lexem::Comma = lexems[i] {
+                            // separator: [1, 2, 3; 4, 5, 6]
+                            //              ^
+                            elements.push(ast(&lexems[element_from+1..i]));
+                            element_from = i;
+                            cur_matrix_width += 1;
+                            last_was_comma = true;
+                            last_was_semicolon = false;
+                        }else if let Lexem::SemiColon = lexems[i] {
+                            // separator: [1, 2, 3; 4, 5, 6]
+                            //                    ^
+                            elements.push(ast(&lexems[element_from+1..i]));
+                            element_from = i;
+                            cur_matrix_width += 1;
+                            if !first_row && cur_matrix_width != matrix_width {
+                                panic!("The preceding rows of the matrix have width {matrix_width} but this row has width {cur_matrix_width}.");
+                            }
+                            first_row = false; 
+                            matrix_width = cur_matrix_width;
+                            cur_matrix_width = 0;
+                            matrix_height += 1;
+                            last_was_semicolon = true;
+                            last_was_comma = false;
+                        }else{
+                            last_was_semicolon = false;
+                            last_was_comma = false;
+                        }
+                    }else{
+                        // we are scanning the inside of a nested matrix
+                    }
+                    i += 1;
+                }
+
+                if !last_was_semicolon {
+                    elements.push(ast(&lexems[element_from+1..i-1]));
+                    if !last_was_comma {
+                        cur_matrix_width += 1;
+                    }
+                    if !first_row && cur_matrix_width != matrix_width {
+                        panic!("The preceding rows of the matrix have width {matrix_width} but this row has width {cur_matrix_width}.");
+                    }
+                    matrix_width = cur_matrix_width;
+                    matrix_height += 1;
+                }
+
+                if bracketcount != 0 {
+                    panic!("Each square bracket needs a corresponding closing square bracket. Bracketcount: {bracketcount}");
+                }else{
+                    Tree {
+                        node: Node::MatrixBlock(matrix_width, matrix_height),
+                        children: elements,
+                        has_value: true,
+                    }
                 }
             },
             Lexem::LeftBracket => {
@@ -352,37 +431,51 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                 let mut elements = Vec::new();
                                  
                 // Consume the content of brackets
-                // and every time we find a semi-colon(;) at a bracket level of +1 we add
+                // and every time we find a semi-colon(;) at a bracket level of 1 we add
                 // the ast of that section as element of the block
+                i += 1;
                 let mut bracketcount = 1;
+                let mut sqbracketcount = 0;
                 let mut from: usize = i;
-                let mut to: usize = 0;
-                i += 2;
                 'consumerPar: while i < lexems.len() { 
-                    if let Lexem::LeftBracket = lexems[i] {
-                        bracketcount += 1;
-                    }else if let Lexem::RightBracket = lexems[i] {
-                        bracketcount -= 1;
-                    }else if let Lexem::SemiColon = lexems[i] {
-                        if bracketcount == 1 {
-                            elements.push(ast(&lexems[from+1..i]));
-                            from = i;
+                    match lexems[i] {
+                        Lexem::LeftBracket => { bracketcount += 1; }
+                        Lexem::RightBracket => { bracketcount -= 1; }
+                        Lexem::LeftSqBracket => { sqbracketcount += 1; }
+                        Lexem::RightSqBracket => { sqbracketcount -= 1; }
+                        Lexem::SemiColon => {
+                            if bracketcount == 1 && sqbracketcount == 0 {
+                                // everything until but not including the semicolon
+                                elements.push(ast(&lexems[from..i]));
+                                // everything from but not including the semicolon
+                                from = i + 1;
+                            }
                         }
+                        _ => (),
                     }
+                    i += 1;
+
                     if bracketcount == 0 {
-                        to = i;
-                        i += 1;
                         break 'consumerPar;
-                    }else{
-                        i += 1;
+                    }else if bracketcount < 0 {
+                        panic!("A closing bracket was found before a corresponding opening bracket.");
+                    }
+                    if sqbracketcount < 0 {
+                        panic!("A closing square bracket was found before a corresponding opening bracket.");
                     }
                 }
-                if to == 0 {
-                    panic!("Each opening parenthesis needs a corresponding closing parenthesis");
+                if bracketcount != 0 {
+                    panic!("Each opening bracket needs a corresponding closing bracket");
+                }else if sqbracketcount != 0 {
+                    panic!("Each opening square bracket needs a corresponding closing square bracket");
                 }
                
                 // we need to push the last argument
-                elements.push(ast(&lexems[from+1..i-1]));
+                // we subtract one because we don't want the closing bracket
+                // println!("Block {}/{}: {:?}", (i as i32) - (from as i32), lexems.len(), &lexems[from..i]);
+                // println!("Content: {:?}", elements);
+                elements.push(ast(&lexems[from..i-1]));
+
                 
                 Tree {
                     node: Node::Block,
@@ -429,29 +522,37 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                                 // and every time we find a comma(,) at a parenthesis level of +1 we add
                                 // the ast of that section as argument to the function call
                                 let mut parcount = 1;
+                                let mut bracketcount = 0;
+                                let mut sqbracketcount = 0;
                                 let mut from: usize = i + 1;
-                                let mut to: usize = 0;
                                 i += 2;
                                 'consumerPar: while i < lexems.len() { 
                                     if let Lexem::LeftPar = lexems[i] {
                                         parcount += 1;
                                     }else if let Lexem::RightPar = lexems[i] {
                                         parcount -= 1;
+                                    }else if let Lexem::LeftBracket = lexems[i] {
+                                        bracketcount += 1;
+                                    }else if let Lexem::RightBracket = lexems[i] {
+                                        bracketcount -= 1;
+                                    }else if let Lexem::LeftSqBracket = lexems[i] {
+                                        sqbracketcount += 1;
+                                    }else if let Lexem::RightSqBracket = lexems[i] {
+                                        sqbracketcount -= 1;
                                     }else if let Lexem::Comma = lexems[i] {
-                                        if parcount == 1 {
+                                        if parcount == 1 && bracketcount == 0 && sqbracketcount == 0 {
                                             args.push(ast(&lexems[from+1..i]));
                                             from = i;
                                         }
                                     }
                                     if parcount == 0 {
-                                        to = i;
                                         i += 1;
                                         break 'consumerPar;
                                     }else{
                                         i += 1;
                                     }
                                 }
-                                if to == 0 {
+                                if parcount != 0 {
                                     panic!("Each opening parenthesis needs a corresponding closing parenthesis");
                                 }
                                 
@@ -460,6 +561,71 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                                 
                                 Tree {
                                     node: Node::FunctionCall(str.clone()),
+                                    children: args,
+                                    has_value: true,
+                                }
+                            }
+                        }
+                        Lexem::LeftSqBracket => {
+                            let empty: bool;
+                            if lexems.len() > i + 2 {
+                                if let Lexem::RightPar = &lexems[i + 2] {
+                                    // this is an empty function call
+                                    empty = true;
+                                }else{
+                                    empty = false;
+                                }
+                            }else{
+                                panic!("Each opening parenthesis needs a corresponding closing parenthesis");
+                            }
+
+                            if empty {
+                                panic!("Trying to index a matrix without specifying any entry. Check if you are trying to create an empty array but put an identifier before the matrix.");
+                            }else{
+                                // Indexing the matrix
+                                let mut args = Vec::new();
+                                
+                                // To determine the indices we have to consume the square brackets
+                                // and every time we find a comma(,) at a parenthesis level of +1 we add
+                                // the ast of that section as argument to the function call
+                                
+                                let mut sqbracketcount = 1;
+                                let mut parcount = 0;
+                                let mut from: usize = i + 1;
+                                i += 2;
+                                'consumerPar: while i < lexems.len() { 
+                                    if let Lexem::LeftSqBracket = lexems[i] {
+                                        sqbracketcount += 1;
+                                    }else if let Lexem::RightSqBracket = lexems[i] {
+                                        sqbracketcount -= 1;
+                                    }else if let Lexem::LeftPar = lexems[i] {
+                                        parcount += 1;
+                                    }else if let Lexem::RightPar = lexems[i] {
+                                        parcount -= 1;
+                                    }else if let Lexem::Comma = lexems[i] {
+                                        if sqbracketcount == 1 && parcount == 0 {
+                                            args.push(ast(&lexems[from+1..i]));
+                                            from = i;
+                                        }
+                                    }
+                                    if sqbracketcount == 0 && parcount == 0{
+                                        i += 1;
+                                        break 'consumerPar;
+                                    }else{
+                                        i += 1;
+                                    }
+                                }
+
+                                if sqbracketcount != 0 {
+                                    dbg!(lexems);
+                                    panic!("Each opening square bracket needs a corresponding closing square bracket");
+                                }
+                                
+                                // we need to push the last argument
+                                args.push(ast(&lexems[from+1..i-1]));
+                                
+                                Tree {
+                                    node: Node::MatrixIndexing(str.clone()),
                                     children: args,
                                     has_value: true,
                                 }
@@ -494,21 +660,20 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                 }
             }
             Lexem::RightPar => {
-                dbg!(lexems);
-                dbg!(level);
                 panic!("Closing parenthesis with no matching opening parenthesis.")
             }
             Lexem::RightBracket => {
                 panic!("Closing bracket with no matching opening bracket.")
             }
+            Lexem::RightSqBracket => {
+                panic!("Closing square bracket with no matching opening square bracket.")
+            }
             Lexem::Comma => {
-                dbg!(lexems);
-                dbg!(level);
-                panic!("Comma found outside of any function call");
+                panic!("Comma found outside of any function call or matrix.");
             }
             Lexem::SemiColon => {
-                dbg!(lexems);
-                dbg!(level);
+                // dbg!(lexems);
+                // dbg!(level);
                 panic!("Semicolon found outside of any block");
             }
         };
