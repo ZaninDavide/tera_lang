@@ -18,7 +18,7 @@ impl RValue {
             RValue::Void => "Void",
             RValue::Number(_) => "Number",
             RValue::String(_) => "String",
-            RValue::Matrix(_, _, _) => "Matrix",
+            RValue::Matrix(_, _, _) => "Matrix", // (w,h,entries)
         }
     }
 }
@@ -390,6 +390,81 @@ impl Tree {
                             res    
                         } )
                     }
+                    "while" => {
+                        if self.children.len() == 2 {
+                            // WHILE 
+                            let mut res: Vec<RValue> = Vec::new();
+                            while {
+                                let ev = &self.children[0].eval(vars);
+                                let condition = if let RValue::Number(cond) = ev { cond } else {
+                                    panic!("While statements require numeric values as condition but {} was found.", ev);
+                                };
+                                *condition != 0.0
+                            } {
+                                res.push(self.children[1].eval(vars));                                
+                            }
+                            RValue::Matrix(1, res.len(), res)
+                        }else{
+                            panic!("The 'while' operator is a prefixed binary operator but a number of {} children was found.", self.children.len());
+                        }
+                    }
+                    "for" => {
+                        if self.children.len() == 3 {
+                            // FOR
+                            if let Node::Variable(index_name) = &self.children[0].node {
+                                if let Node::Variable(matrix_name) = &self.children[1].node {
+                                    // if we iterate on a variable we avoid evaluating the expression and
+                                    // use the variable directly
+                                    let matrix: &RValue = match vars.get(matrix_name) { 
+                                        Some(m) => m, 
+                                        None => { panic!("'{}' is not an existing variable.", matrix_name) }
+                                    };
+                                    let (w, h) = match matrix {
+                                        RValue::Matrix(w, h, _) => (*w, *h),
+                                        _ => { panic!("'{}' is not a variable containing a matrix.", matrix_name) } 
+                                    };
+                                    // actually executing the for statement
+                                    let mut res_vec = Vec::with_capacity(w*h);
+                                    for x in 0..w {
+                                        for y in 0..h {
+                                            let matrix: &RValue = match vars.get(matrix_name) { 
+                                                Some(m) => m, 
+                                                None => { panic!("'{}' is not an existing variable.", matrix_name) }
+                                            };
+                                            let cur = match matrix {
+                                                RValue::Matrix(_, _, v) => { (v[y*w + x]).clone() },
+                                                _ => { panic!("'{}' is not a variable containing a matrix.", matrix_name) } 
+                                            };
+                                            vars.insert(index_name.clone(), cur);
+                                            res_vec.push(self.children[2].eval(vars));
+                                        }
+                                    }
+                                    RValue::Matrix(w, h, res_vec)
+                                }else if self.children[1].has_value {
+                                    let matrix: RValue = self.children[1].eval(vars);
+                                    let (w, h, vec_matrix) = match matrix {
+                                        RValue::Matrix(w, h, vec_matrix) => (w, h, vec_matrix),
+                                        value => { panic!("'for' statements iterate over matrices but the given expression was evaluated as {}, which is not a matrix.", value) } 
+                                    };
+                                    // actually executing the for statement
+                                    let mut res_vec = Vec::with_capacity(w*h);
+                                    for x in 0..w {
+                                        for y in 0..h {
+                                            vars.insert(index_name.clone(), vec_matrix[y*w + x].clone());
+                                            res_vec.push(self.children[2].eval(vars));
+                                        }
+                                    }
+                                    RValue::Matrix(w, h, res_vec)
+                                }else{
+                                    panic!("The element after the 'in' keyword of a 'for' statement must be a valid variable name or a valued expression. Found {:?} instead.", self.children[1]);
+                                }
+                            }else{
+                                panic!("The element after a 'for' operator must be a valid variable name. Found {:?} instead, which is not a variable name.", self.children[0]);
+                            }
+                        }else{
+                            panic!("The 'for' operator should have three children but a number of {} children was found.", self.children.len());
+                        }
+                    }
                     _ => {
                         panic!("Unknown operator '{}'", opname);
                     }
@@ -723,6 +798,9 @@ impl Tree {
                 }else{
                     panic!("Unable to give value to:\n {:?}", &self);
                 }
+            }
+            Node::Keyword(str) => {
+                panic!("Trying to give value to '{}', which is a keyword and thus has no value.", str);
             }
             Node::None => {
                 RValue::Void

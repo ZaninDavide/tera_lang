@@ -12,6 +12,7 @@ pub enum Lexem {
     Identifier(String),
     Number(String, String), // (representation, decorator)
     Operator(String),
+    Keyword(String),
     Comma,
     SemiColon,
     UnitBlock(Unit, f64, f64), // unit, factor, shift
@@ -29,6 +30,7 @@ impl std::fmt::Display for Lexem {
             Lexem::Identifier(s) => write!(f, "ID{{{}}}", s),
             Lexem::Number(s, d) => write!(f, "NUM{{{}, \"{}\"}}", s, d),
             Lexem::Operator(s) => write!(f, "OP{{{}}}", s),
+            Lexem::Keyword(s) => write!(f, "KEY{{{}}}", s),
             Lexem::Comma => write!(f, "COMMA,"),
             Lexem::SemiColon => write!(f, "SC;"),
             Lexem::UnitBlock(u, n, m) => write!(f, "UNIT{{{u},{n},{m}}}"),
@@ -53,7 +55,10 @@ impl Lexer {
         let mut i = 0;
 
         let string_operators = vec![
-            "or", "and", "nand", "xor", "if", "else", "pm"
+            "or", "and", "nand", "xor", "if", "else", "pm", "while", "for"
+        ];
+        let keywords = vec![
+            "in" // the "in" of "for x in matrix"
         ];
 
         'main: while i < n {
@@ -263,6 +268,8 @@ impl Lexer {
                         // the identifier is finished
                         if string_operators.contains(&&word[..]) {
                             self.lexems.push(Lexem::Operator(word));
+                        }else if keywords.contains(&&word[..]){
+                            self.lexems.push(Lexem::Keyword(word));
                         }else{
                             self.lexems.push(Lexem::Identifier(word));
                         }

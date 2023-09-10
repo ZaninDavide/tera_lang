@@ -9,6 +9,7 @@ pub enum Node {
     None,
     Number(f64, String),
     Operator(String),
+    Keyword(String),
     Variable(String),
     FunctionCall(String),
     Block,
@@ -93,6 +94,12 @@ impl Tree {
     }
     fn is_error(&self) -> bool {
         match &self.node { Node::Operator(str) =>  { !self.has_value && str == "&" }, _ => false }
+    }
+    fn is_while(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "while" }, _ => false }
+    }
+    fn is_for(&self) -> bool {
+        match &self.node { Node::Operator(str) =>  { !self.has_value && str == "for" }, _ => false }
     }
 }
 
@@ -298,6 +305,88 @@ fn apply_else_statements_to_level(level: &mut Vec<Tree>) {
     }
 }
 
+fn apply_while_statements_to_level(level: &mut Vec<Tree>) {
+    if level.len() < 3 { return; }
+    let mut i: i32 = (level.len() as i32) - 3; 
+    while i >= 0 {
+        if level[i as usize].is_while() 
+        {
+            let right2 = level.remove((i+2) as usize);
+            let right1 = level.remove((i+1) as usize);
+            let mut middle = &mut level[i as usize];
+            if right1.has_value {
+                if let Node::Block = right2.node {
+                    if right2.has_value {
+                        middle.children.push(right1); // condition
+                        middle.children.push(right2); // block
+                        middle.has_value = true;
+                        // we can keep going but we have to change i -> i - 1
+                        // level = A B C D E F G H I
+                        //           -^^^^ -> N
+                        // level = A N E F G H I
+                        //         _^^
+                        i -= 1;
+                    }else{
+                        panic!("The second element after a 'while' keyword must be a valued block. Found '{:?}' instead, which has no value.", right2);
+                    }
+                }else{
+                    panic!("The second element after a 'while' keyword must be a valued block. Found '{:?}' instead, which is not a block", right2);
+                }
+            }else{
+                panic!("The first element after a 'while' keyword must be a valued expression. Found '{:?}' instead", right1);
+            }
+        }else{
+            i -= 1;
+        }
+    }
+}
+fn apply_for_statements_to_level(level: &mut Vec<Tree>) {
+    if level.len() < 5 { return; }
+    let mut i: i32 = (level.len() as i32) - 3; 
+    while i >= 0 {
+        if level[i as usize].is_for() 
+        {
+            // for x in matrix {}
+            // ^^^ ^ ^^ ^^^^^^ ^^
+            //  0  1 2     3   4
+            let right4 = level.remove((i+4) as usize);    // 4
+            let right3 = level.remove((i+3) as usize);    // 3
+            let right2 = level.remove((i+2) as usize);    // 2
+            let right1 = level.remove((i+1) as usize);    // 1
+            let mut middle = &mut level[i as usize]; // 0
+            if let Node::Variable(_index_name) = &right1.node {
+            if let Node::Keyword(key_name) = &right2.node {
+            if key_name == "in" {
+            if right3.has_value {
+            if let Node::Block = &right4.node {
+                if right4.has_value == false { panic!("The second element after the 'in' keyword of a 'for' statement must be a valued block. Found '{:?}' instead, which has no value.", right4)}
+                middle.children.push(right1);
+                middle.children.push(right3);
+                middle.children.push(right4);
+                middle.has_value = true;
+                // we can keep going but we have to change i -> i - 1
+                // level = A B C D E F G H I
+                //           _^^^^^^^^ -> N
+                // level = A N G H I
+                // 
+                i -= 1;
+            }else{
+                panic!("The second element after the 'in' keyword of a 'for' statement must be a valued block. Found '{:?}' instead, which is not a block.", right4);
+            }}else{
+                panic!("The element after the 'in' keyword of a 'for' statement must be a valued expression. Found {:?} instead.", right3);
+            }}else{
+                panic!("The second element after a 'for' keyword must be the 'in' keyword. Found {:?} instead, which is not the right keyword.", right2);
+            }}else{
+                panic!("The second element after a 'for' keyword must be the 'in' keyword. Found {:?} instead, which is not a keyword.", right2);
+            }}else{
+                panic!("The first element after a 'for' keyword must be a valid variable name. Found {:?} instead.", right1);
+            }
+        }else{
+            i -= 1;
+        }
+    }
+}
+
 pub fn ast(lexems: &[Lexem]) -> Tree{    
     if lexems.len() == 0 {
         return Tree {
@@ -322,6 +411,11 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
                 i += 1;
                 // OPERATOR TO NODE.
                 Node::Operator(opname.clone()).into()
+            },
+            Lexem::Keyword(keyword) => {
+                i += 1;
+                // OPERATOR TO NODE.
+                Node::Keyword(keyword.clone()).into()
             },
             Lexem::LeftPar => {
                 // find start and end of this parenthesis section
@@ -722,6 +816,12 @@ pub fn ast(lexems: &[Lexem]) -> Tree{
     
     // else
     apply_else_statements_to_level(&mut level);
+
+    // while
+    apply_while_statements_to_level(&mut level);
+
+    // for
+    apply_for_statements_to_level(&mut level);
 
     // assign(=)
     apply_binary_operation_to_level(&mut level, |tree: &Tree| -> bool { tree.is_assign() });
