@@ -491,6 +491,12 @@ impl Tree {
                             re: -n.im, im: n.re, vre: n.vim, vim: n.vre, unit: n.unit
                         })
                     }
+                    "exp" => {
+                        eval_number_unary_function!("exp", self.children, vars, n, {
+                            if !n.unit.is_unitless() { panic!("The 'exp' function operates on unitless quantities but '{n}' was found.") }
+                            n.exp()
+                        })
+                    }
                     "Re" | "real" => {
                         eval_number_unary_function!("Re", self.children, vars, n, n.real_part())
                     }

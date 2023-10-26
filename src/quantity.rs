@@ -633,6 +633,27 @@ impl Quantity {
         }
     }
 
+    pub fn exp(&self) -> Quantity {
+        // exp(z) = e^{z} = e^{x + iy} = e^x e^{iy} = e^x(cos(y) + i sin(y))
+        let ex = self.re.exp();
+        let excos = ex*self.im.cos();
+        let exsin = ex*self.im.sin();
+        let excos2 = squared(excos);
+        let exsin2 = squared(exsin);
+        Quantity { 
+            re: excos, 
+            im: exsin, 
+            vre: excos2*self.vre + excos2*self.vim, 
+            vim: exsin2*self.vre + excos2*self.vim, 
+            unit: Unit::unitless(),
+        } 
+    }
+
+    pub fn ln(&self) -> Quantity {
+        // ln(z) = ln(A expiθ) = ln(A) + iθ
+        todo!();
+    }
+
     // assumes real quantities
     pub fn max(&self, other: &Quantity) -> Quantity {
         if self.re >= other.re {
