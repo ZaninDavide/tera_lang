@@ -121,7 +121,7 @@ fn apply_binary_operation_to_level(level: &mut Vec<Tree>, node_is_wanted_operati
             let right = level.remove(i + 1);
             let left = level.remove(i - 1);
             // now the operator has changed index i -> i - 1
-            let mut middle = &mut level[i - 1];
+            let middle = &mut level[i - 1];
             if left.has_value && right.has_value {
                 middle.children.push(left);
                 middle.children.push(right);
@@ -149,7 +149,7 @@ fn _apply_prefixed_unary_operation_to_level(level: &mut Vec<Tree>, node_is_wante
         if node_is_wanted_operation(&level[i as usize]) {
             let right = level.remove((i+1) as usize);
             // now the operator has not changed index
-            let mut middle = &mut level[i as usize];
+            let middle = &mut level[i as usize];
             if right.has_value {
                 middle.children.push(right);
                 middle.has_value = true;
@@ -185,7 +185,7 @@ fn apply_all_prefixed_unary_operations_to_level(level: &mut Vec<Tree>) {
         {
             let right = level.remove((i+1) as usize);
             // now the operator has not changed index
-            let mut middle = &mut level[i as usize];
+            let middle = &mut level[i as usize];
             if right.has_value {
                 middle.children.push(right);
                 middle.has_value = true;
@@ -211,7 +211,7 @@ fn apply_postfixed_unary_operation_to_level(level: &mut Vec<Tree>, node_is_wante
         if node_is_wanted_operation(&level[i]) {
             let left = level.remove(i - 1);
             // now the operator has changed index i -> i - 1
-            let mut middle = &mut level[i - 1];
+            let middle = &mut level[i - 1];
             if left.has_value {
                 middle.children.push(left);
                 middle.has_value = true;
@@ -237,7 +237,7 @@ fn apply_if_statements_to_level(level: &mut Vec<Tree>) {
         {
             let right2 = level.remove((i+2) as usize);
             let right1 = level.remove((i+1) as usize);
-            let mut middle = &mut level[i as usize];
+            let middle = &mut level[i as usize];
             if right1.has_value {
                 if let Node::Block = right2.node {
                     if right2.has_value {
@@ -313,7 +313,7 @@ fn apply_while_statements_to_level(level: &mut Vec<Tree>) {
         {
             let right2 = level.remove((i+2) as usize);
             let right1 = level.remove((i+1) as usize);
-            let mut middle = &mut level[i as usize];
+            let middle = &mut level[i as usize];
             if right1.has_value {
                 if let Node::Block = right2.node {
                     if right2.has_value {
@@ -353,7 +353,7 @@ fn apply_for_statements_to_level(level: &mut Vec<Tree>) {
             let right3 = level.remove((i+3) as usize);    // 3
             let right2 = level.remove((i+2) as usize);    // 2
             let right1 = level.remove((i+1) as usize);    // 1
-            let mut middle = &mut level[i as usize]; // 0
+            let middle = &mut level[i as usize]; // 0
             if let Node::Variable(_index_name) = &right1.node {
             if let Node::Keyword(key_name) = &right2.node {
             if key_name == "in" {

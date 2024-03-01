@@ -23,7 +23,7 @@ impl Unit {
     pub fn parse_single_unit(text: &str) -> (Unit, f64, f64) {
         let chars = text.graphemes(true).collect::<Vec<&str>>();
         let mut unit = Unit::unitless();
-        let mut factor: f64 = 1.0;
+        let mut factor;
         let mut shift: f64 = 0.0;
 
         // find the end of the stringy part
@@ -204,7 +204,7 @@ impl Unit {
 
     pub fn parse_unit_block(text: &str) -> (Unit, f64, f64) {
         let slash_split: Vec<&str> = text.split('/').collect();
-        let mut prod = "";
+        let prod: &str;
         let mut div= "";
         match slash_split.len() {
             1 => {
@@ -337,7 +337,7 @@ impl Unit {
                 let div = current.clone() / u.clone();
                 let this_norm = div.taxi_norm();
                 if this_norm < lowest_norm {
-                    best = (s.clone(), u.clone());
+                    best = (s, u.clone());
                     lowest_norm = this_norm;
                     new_current = div;
                     mult_or_div = 1;
@@ -349,7 +349,7 @@ impl Unit {
                 let mul = current.clone() * u.clone();
                 let this_norm = mul.taxi_norm();
                 if this_norm < lowest_norm {
-                    best = (s.clone(), u.clone());
+                    best = (s, u.clone());
                     lowest_norm = this_norm;
                     new_current = mul;
                     mult_or_div = -1;
@@ -398,7 +398,24 @@ macro_rules! disp_unit {
     ($selff:ident, $string:ident, $first:ident, $counter:ident, $field: ident, $name:expr) => {
         if $selff.$field != 0 {
             if $first { $first = false; }else{ $string.push('.'); }
-            let n: String = if $selff.$field != 1 { $selff.$field.to_string() }else{ String::new() };
+            let mut n: String = if $selff.$field != 1 { $selff.$field.to_string() }else{ String::new() };
+            n = n.chars().map(|c: char| {
+                return match c {
+                    '0' => '⁰',
+                    '1' => '¹',
+                    '2' => '²',
+                    '3' => '³',
+                    '4' => '⁴',
+                    '5' => '⁵',
+                    '6' => '⁶',
+                    '7' => '⁷',
+                    '8' => '⁸',
+                    '9' => '⁹',
+                    '+' => '⁺',
+                    '-' => '⁻',
+                    _ =>   c,
+                }
+            }).collect();
             $string.push_str(&format!("{}{}", $name, n)[..]);
             $counter += 1;
         }
@@ -590,6 +607,10 @@ impl Quantity {
         self.im == 0.0 && self.vim == 0.0
     }
 
+    pub fn is_imaginary(&self) -> bool {
+        self.re == 0.0 && self.vre == 0.0 && (self.im != 0.0 && self.vim != 0.0)
+    }
+
     pub fn from_value_decorator(val: f64, dec: &String) -> Quantity {
         let mut unit = Unit::unitless();
 
@@ -714,6 +735,48 @@ impl Quantity {
     }
 }
 
+fn powi(base: i32, exponent: i32) -> f64 {
+    if exponent >= 0 {
+        i32::checked_pow(base, exponent as u32)
+        .expect(&format!("Overflow happened while raising {base} to the power of {exponent}.")) as f64
+    }else{
+        1.0 / (
+            i32::checked_pow(base, (-exponent) as u32)
+            .expect(&format!("Overflow happened while raising {base} to the power of {exponent}.")) as f64
+        )
+    }
+}
+
+fn number_to_text(x: f64, sx: f64, force_parenthesis: bool) -> String {
+    let og: i32 = x.abs().log10().floor() as i32;
+    let ogs: i32 = sx.abs().log10().floor() as i32;
+    let common_og = i32::max(og, ogs);
+    let powi_common_og = powi(10, common_og);
+    let cifre = i32::max(0, common_og - ogs);
+    let mantissa_x = format!("{0:.1$}", x / powi_common_og, cifre as usize);
+    let mantissa_sx = format!("{0:.1$}", sx / powi_common_og, cifre as usize);
+    let common_og_str: String = format!("{common_og}").chars().map(|c: char| {
+        return match c {
+            '0' => '⁰', '1' => '¹',
+            '2' => '²', '3' => '³',
+            '4' => '⁴', '5' => '⁵',
+            '6' => '⁶', '7' => '⁷',
+            '8' => '⁸', '9' => '⁹',
+            '+' => '⁺', '-' => '⁻',
+            _ =>   c,
+        }
+    }).collect();
+    if common_og == 0 {
+        if force_parenthesis {
+            return format!("({mantissa_x} ± {mantissa_sx})");
+        }else{
+            return format!("{mantissa_x} ± {mantissa_sx}");
+        }
+    }else{
+        return format!("({mantissa_x} ± {mantissa_sx})×10{common_og_str}");
+    }
+}
+
 impl std::fmt::Display for Quantity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_real() {
@@ -721,13 +784,13 @@ impl std::fmt::Display for Quantity {
                 if self.vre == 0.0 {
                     write!(f, "{}", self.re)
                 }else{
-                    write!(f, "{} ± {}", self.re, self.vre.sqrt())
+                    write!(f, "{}", number_to_text(self.re, self.vre.sqrt(), false))
                 }
             }else{
                 if self.vre == 0.0 {
                     write!(f, "{}{}", self.re, self.unit)
                 }else{
-                    write!(f, "({} ± {}){}", self.re, self.vre.sqrt(), self.unit)
+                    write!(f, "{}{}", number_to_text(self.re, self.vre.sqrt(), false), self.unit)
                 }
             }
         }else{
@@ -735,13 +798,13 @@ impl std::fmt::Display for Quantity {
                 if self.vre == 0.0 && self.vim == 0.0 {
                     write!(f, "{} + {}i", self.re, self.im)
                 }else{
-                    write!(f, "({} ± {}) + i({} ± {})", self.re, self.vre.sqrt(), self.im, self.vim.sqrt())
+                    write!(f, "{} + i{}", number_to_text(self.re, self.vre.sqrt(), true), number_to_text(self.im, self.vim.sqrt(), true))
                 }
             }else{
                 if self.vre == 0.0 && self.vim == 0.0 {
                     write!(f, "({} + {}i){}", self.re, self.im, self.unit)
                 }else{
-                    write!(f, "({} ± {}){} + i({} ± {}){}", self.re, self.vre.sqrt(), self.unit, self.im, self.vim.sqrt(), self.unit)
+                    write!(f, "{0}{2} + i{1}{2}", number_to_text(self.re, self.vre.sqrt(), true), number_to_text(self.im, self.vim.sqrt(), true), self.unit)
                 }
             }
         }
@@ -774,7 +837,7 @@ impl Quantity {
                 if values.vre == 0.0 {
                     return format!("{}", values.re);
                 }else{
-                    return format!("{} ± {}", values.re, values.vre.sqrt());
+                    return format!("{}", number_to_text(values.re, values.vre.sqrt(), false));
                 }
             }else{
                 if values.vre == 0.0 {
@@ -785,9 +848,9 @@ impl Quantity {
                     }
                 }else{
                     if unit_str != "" {
-                        return format!("({} ± {}){}", values.re, values.vre.sqrt(), unit_str);
+                        return format!("{}{}", number_to_text(values.re, values.vre.sqrt(), true), unit_str);
                     }else{
-                        return format!("({} ± {}){}", values.re, values.vre.sqrt(), self.unit);
+                        return format!("{}{}", number_to_text(values.re, values.vre.sqrt(), true), self.unit);
                     }
                 }
             }
@@ -796,7 +859,7 @@ impl Quantity {
                 if values.vre == 0.0 && values.vim == 0.0 {
                     return format!("{} + {}i", values.re, values.im);
                 }else{
-                    return format!("({} ± {}) + i({} ± {})", values.re, values.vre.sqrt(), values.im, values.vim.sqrt());
+                    return format!("{} + i{}", number_to_text(values.re, values.vre.sqrt(), true), number_to_text(values.im, values.vim.sqrt(), false));
                 }
             }else{
                 if values.vre == 0.0 && values.vim == 0.0 {
@@ -807,13 +870,12 @@ impl Quantity {
                     }
                 }else{
                     if unit_str != "" {
-                        return format!("({} ± {}){} + i({} ± {}){}", values.re, values.vre.sqrt(), unit_str, values.im, values.vim.sqrt(), unit_str);
+                        return format!("{}{} + i{}{}", number_to_text(values.re, values.vre.sqrt(), true), unit_str, number_to_text(values.im, values.vim.sqrt(), true), unit_str);
                     }else{
-                        return format!("({} ± {}){} + i({} ± {}){}", values.re, values.vre.sqrt(), self.unit, values.im, values.vim.sqrt(), self.unit);
+                        return format!("{}{} + i{}{}", number_to_text(values.re, values.vre.sqrt(), true), self.unit, number_to_text(values.im, values.vim.sqrt(), true), self.unit);
                     }
                 }
             }
         }
-
     }
 }

@@ -30,7 +30,7 @@ fn main() {
     let now = Instant::now();
     
     for _ in 1..=iterations {
-        let res = evaluator.eval();
+        let _res = evaluator.eval();
         // println!("\n\n{} = {}", lexer.text, res);   
     }
 

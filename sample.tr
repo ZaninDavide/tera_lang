@@ -101,4 +101,17 @@
     print("θ = {θ}");
     res = exp(θ);
     print("res = {res}");
+
+    print("");
+    print("");
+    x = 1.2345 pm 0.01;
+    print("x = {x}");
+    x = (0.1 pm 1.23 + 1i pm 3i)|m3|;
+    string = "x = {x}";
+    print(string);
+
+    R = (1000 ± 1)|Ω|;
+    C = 10nF ± 1nF;
+    τ = R*C;
+    print("τ = {τ}"); 
 }
